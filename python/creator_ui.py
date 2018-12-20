@@ -675,7 +675,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         """
         association_dict = self.associate_control.association_dict
         tmp = {}
-        tmp["render_sim"] = copy.deepcopy(association_dict.association_dict)
+        tmp["render_sim"] = copy.deepcopy(association_dict)
         render_sim_association_dict = tmp
         if not tmp:
             return
