@@ -1,0 +1,47 @@
+{
+    "input_suffix": "_input",
+    "output_suffix": "_output",
+    "input_layer_name": "input",
+    "output_layer_name": "output",
+    "render_input": "render_input",
+    "render_output": "render_output",
+    "sim_input": "sim_input",
+    "sim_output": "sim_output",
+    "techanim_root": "techanim_setup",
+    "sim_base_name": "geo",
+    "sim_layer": "sim",
+    "post_layer": "post",
+    "nCloth_suffix": "nCloth",
+    "rigid_suffix": "rigid",
+    "nucleus_name": "techanim_nucleus",
+    "config_attr": "techanim_config",
+    "nodes_attr": "techanim_nodes",
+    "grouping": {
+        "techanim_setup": {
+            "pre": {
+                "geo_pre": null
+            },
+            "input": {
+                "render_input": null,
+                "sim_input": null
+            },
+            "post": {
+                "geo_post": null
+            },
+            "sim": {
+                "geo_sim": null
+            },
+            "output": {
+                "render_output": null,
+                "sim_output": null
+            }
+        }
+    },
+    "grouping_order": ["input", "pre", "sim", "post", "output"],
+    "HOWTO_FILEPATH_DICT": {
+        "RenderGeoListView": "images/make_association.gif",
+        "SimGeoListView": "images/make_association.gif",
+        "easter_egg": "images/muffin.gif"
+    }
+
+}
