@@ -38,6 +38,22 @@ for _key, _path in HOWTO_FILEPATH_DICT.iteritems():
     HOWTO_FILEPATH_DICT[_key] = os.path.join(DIR_PATH, os.path.normpath(_path))
 
 
+def genericWarning(parent, warningText):
+    """generic prompt warning with the provided text
+
+    Args:
+        parent (QWidget): Qwidget to be parented under
+        warningText (str): information to display to the user
+
+    Returns:
+        QtCore.Response: of what the user chose. For warnings
+    """
+    selWarning = QtWidgets.QMessageBox(parent)
+    selWarning.setText(warningText)
+    results = selWarning.exec_()
+    return results
+
+
 def mainWindow():
     """useless, but should get maya main window
 
@@ -444,8 +460,10 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         self.mainLayout.addWidget(self.wrap_settings_layout())
         self.mainLayout.addWidget(self.nCloth_settings())
         self.create_btn = QtWidgets.QPushButton("Create Setup")
+        self.create_btn.setToolTip("Create setup when ALL associations have been made.")
         self.create_btn.setEnabled(False)
         self.mainLayout.addWidget(self.create_btn)
+        self.mainLayout.addWidget(self.utils_layout())
         self.associate_control = AssociateSelectionControl(self.render_geo_view,
                                                            self.sim_geo_view)
 
@@ -453,6 +471,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         self.create_signal_connections()
         self.render_geo_view.installEventFilter(self)
         self.sim_geo_view.installEventFilter(self)
+        self.add_driven_nodes_btn.installEventFilter(self)
 
         # howto layer ---------------------------------------------------------
         self.movie_screen = DisplayImage(parent=self)
@@ -501,6 +520,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
 
         as_co.all_pairs_made.connect(self.create_btn.setEnabled)
         self.create_btn.clicked.connect(self.create_setup)
+        self.add_driven_nodes_btn.clicked.connect(self.add_driven_render_nodes)
 
     def select_from_list(self, modelIndex):
         """Select maya nodes from the provided modelIndex
@@ -511,6 +531,12 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         cmds.select(modelIndex.data())
 
     def add_selection(self, control, model):
+        """Add selected nodes to the model for the UI
+
+        Args:
+            control (TYPE): Description
+            model (TYPE): Description
+        """
         items = self.get_selected()
         control.add_items(model, items)
 
@@ -584,9 +610,12 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         self.render_label = QtWidgets.QLabel("Render Geo (0)")
         self.render_geo_view = QtWidgets.QListView()
         self.render_geo_view.setObjectName("RenderGeoListView")
+        self.render_geo_view.setToolTip("Select Geo, then its corresponding sim cage.")
         self.render_geo_view.setWhatsThis("Select Render Geo, then its corresponding sim cage.")
         self.render_geo_add_btn = QtWidgets.QPushButton("Add Selected")
+        self.render_geo_add_btn.setToolTip("Add selected geo. No duplicates.")
         self.render_geo_remove_btn = QtWidgets.QPushButton("Remove Selected")
+        self.render_geo_remove_btn.setToolTip("Remove selected from List.")
         render_layout.addWidget(self.render_label)
         render_layout.addWidget(self.render_geo_view)
         render_layout.addWidget(self.render_geo_add_btn)
@@ -595,10 +624,13 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         sim_layout = QtWidgets.QVBoxLayout()
         self.sim_label = QtWidgets.QLabel("Sim Geo (0)")
         self.sim_geo_view = QtWidgets.QListView()
+        self.sim_geo_view.setToolTip("Select Render Geo, then sim geo.")
         self.sim_geo_view.setWhatsThis("Select Render Geo, then sim geo.")
         self.sim_geo_view.setObjectName("SimGeoListView")
         self.sim_geo_add_btn = QtWidgets.QPushButton("Add Selected")
+        self.sim_geo_add_btn.setToolTip("Add selected geo. No duplicates.")
         self.sim_geo_remove_btn = QtWidgets.QPushButton("Remove Selected")
+        self.sim_geo_remove_btn.setToolTip("Remove selected from List.")
         sim_layout.addWidget(self.sim_label)
         sim_layout.addWidget(self.sim_geo_view)
         sim_layout.addWidget(self.sim_geo_add_btn)
@@ -616,7 +648,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
             QtWidgets.QGroupBox : Similar to a layout, but allows for labeling
             of the section that is intuitive.
         """
-        group_wdidget = QtWidgets.QGroupBox("Wrap Settings")
+        group_widget = QtWidgets.QGroupBox("Wrap Settings")
         # falloff -------------------------------------------------------------
         layout = QtWidgets.QVBoxLayout()
         layout_a = QtWidgets.QHBoxLayout()
@@ -638,9 +670,9 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
 
         layout.addLayout(layout_a)
         layout.addLayout(layout_b)
-        group_wdidget.setLayout(layout)
+        group_widget.setLayout(layout)
 
-        return group_wdidget
+        return group_widget
 
     def nCloth_settings(self):
         """layout containing the widgets for taking in nCloth settings
@@ -650,7 +682,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
             of the section that is intuitive.
         """
         # creating the UI, model/view way
-        group_wdidget = QtWidgets.QGroupBox("nCloth Settings")
+        group_widget = QtWidgets.QGroupBox("nCloth Settings")
         layout = QtWidgets.QVBoxLayout()
 
         layout_a = QtWidgets.QHBoxLayout()
@@ -662,9 +694,27 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         layout_a.addWidget(self.add_passive_btn)
 
         layout.addLayout(layout_a)
-        group_wdidget.setLayout(layout)
+        group_widget.setLayout(layout)
 
-        return group_wdidget
+        return group_widget
+
+    def utils_layout(self):
+        """
+        """
+        group_widget = QtWidgets.QGroupBox("Utils")
+        # falloff -------------------------------------------------------------
+        layout = QtWidgets.QVBoxLayout()
+        layout_a = QtWidgets.QHBoxLayout()
+        self.add_driven_nodes_btn = QtWidgets.QPushButton("Add Render Geo")
+        self.add_driven_nodes_btn.setObjectName("AddRenderGeoButton")
+        msg = "Select driven nodes and influence sim '{output_suffix}' object."
+        msg = msg.format(**CONFIG)
+        self.add_driven_nodes_btn.setWhatsThis(msg)
+        self.add_driven_nodes_btn.setToolTip(msg)
+        layout_a.addWidget(self.add_driven_nodes_btn)
+        layout.addLayout(layout_a)
+        group_widget.setLayout(layout)
+        return group_widget
 
     def create_setup(self):
         """Grab information from the ui that may have been change by the user
@@ -682,7 +732,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         rigid_nodes = ast.literal_eval(self.passive_edit.text() or "[]")
         tmp["rigid_nodes"] = rigid_nodes
         setup_options = {
-            "fallOffMode": str(self.wrap_falloff_cb.currentText()),
+            "fallOffMode": self.wrap_falloff_cb.currentText()[0],
             "exclusiveBind": self.wrap_exclusive_cb.currentIndex() + 1
         }
         print(association_dict)
@@ -690,6 +740,22 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         print(setup_options)
         creator_utils.create_setup(render_sim_association_dict,
                                    setup_options=setup_options)
+
+    def add_driven_render_nodes(self):
+        selected = cmds.ls(sl=True)
+        driven = selected[:-1]
+        driver = selected[-1]
+        if not driver.endswith(CONFIG["output_suffix"]):
+            msg = "Driver must be selected last, and be an '{}' node."
+            msg = msg.format(CONFIG["output_suffix"])
+            genericWarning(self, msg)
+            return
+        fallOffMode = self.wrap_falloff_cb.currentText()
+        exclusiveBind = self.wrap_exclusive_cb.currentIndex() + 1
+        creator_utils.add_driven_render_nodes(driver,
+                                              driven,
+                                              exclusiveBind=exclusiveBind,
+                                              falloffMode=fallOffMode)
 
     def display_howto(self, howto_key):
         filepath = HOWTO_FILEPATH_DICT.get(howto_key)
@@ -713,13 +779,6 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
             QEvent.accept()
 
         return False
-
-    def resizeEventee(self, event):
-        '''Resizing the howto layer, otherwise pass through
-        '''
-        size = self.size()
-        self.movie_screen.resize(size)
-        return super(TechAnimCreatorUI, self).resizeEvent(event)
 
 
 if __name__ == '__main__':

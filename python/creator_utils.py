@@ -29,11 +29,13 @@ from config_io import CONFIG
 
 RIGID_KEY = "rigid_nodes"
 RENDER_SIM_KEY = "render_sim"
+RENDER_INPUT_KEY = "render_input"
+RENDER_OUTPUT_KEY = "render_output"
 LOCK_ATTRS = ["tx", "ty", "tz", "rx", "ry", "rz", "sx", "sy", "sz"]
 CONFIG_ATTR = "techanim_config"
 
 # Default options that would be interacted with from the UI
-DEFAULT_SETUP_OPTIONS = {"fallOffMode": 1,
+DEFAULT_SETUP_OPTIONS = {"falloffMode": "surface",
                          "exclusiveBind": 1}
 
 # =============================================================================
@@ -92,11 +94,12 @@ def create_wrap(driver,
     cmds.optionVar(iv=["exclusiveBind", exclusiveBind])
     cmds.optionVar(iv=["autoWeightThreshold", autoWeightThreshold])
     cmds.optionVar(iv=["renderInfl", renderInfl])
+    print("falloffMode", falloffMode)
     cmds.optionVar(sv=["falloffMode", falloffMode])
 
     cmds.select(cl=True)
-    cmds.select(driver)
-    cmds.select(driven, add=True)
+    cmds.select(driven)
+    cmds.select(driver, add=True)
 
     mel.eval("CreateWrap;")
 
@@ -177,13 +180,13 @@ def create_techanim_grouping():
 
 
 def create_input_layer(techanim_info,
-                       fallOffMode=1,
+                       falloffMode=1,
                        exclusiveBind=1):
     """Convenience function to create the input layer
 
     Args:
         techanim_info (dict): render: sim cage
-        fallOffMode (int, optional): 1: volume, 0: surface
+        falloffMode (int, optional): 1: volume, 0: surface
         exclusiveBind (int, optional): 0: off, 1: on
     """
     populate_connection_layer(techanim_info,
@@ -191,7 +194,7 @@ def create_input_layer(techanim_info,
                               CONFIG["render_input"],
                               CONFIG["sim_input"],
                               wrap=True,
-                              fallOffMode=fallOffMode,
+                              falloffMode=falloffMode,
                               exclusiveBind=exclusiveBind)
 
 
@@ -245,12 +248,12 @@ def create_rigid_nodes(rigid_nodes, nucleus_node):
             cmds.connectAttr(source_plug, dest_plug, f=True)
 
 
-def create_output_layer(techanim_info, fallOffMode=1, exclusiveBind=1):
+def create_output_layer(techanim_info, falloffMode=1, exclusiveBind=1):
     """Convenience function to create the output layer
 
     Args:
         techanim_info (dict): render: sim cage
-        fallOffMode (int, optional): 1: volume, 0: surface
+        falloffMode (int, optional): 1: volume, 0: surface
         exclusiveBind (int, optional): 0: off, 1: on
     """
     inv_dict = {v: k for k, v in techanim_info.iteritems()}
@@ -259,7 +262,7 @@ def create_output_layer(techanim_info, fallOffMode=1, exclusiveBind=1):
                               CONFIG["sim_output"],
                               CONFIG["render_output"],
                               wrap=True,
-                              fallOffMode=fallOffMode,
+                              falloffMode=falloffMode,
                               exclusiveBind=exclusiveBind)
 
 
@@ -268,7 +271,7 @@ def populate_connection_layer(techanim_info,
                               groupA,
                               groupB,
                               wrap=True,
-                              fallOffMode=1,
+                              falloffMode=1,
                               exclusiveBind=1):
     """create the input layer that wraps the sim nodes to the render nodes
     to transfer performance for simulation.
@@ -299,7 +302,7 @@ def populate_connection_layer(techanim_info,
             wrapDeformer = create_wrap(input_sim_node,
                                        input_render_node,
                                        exclusiveBind=exclusiveBind,
-                                       falloffMode=fallOffMode)
+                                       falloffMode=falloffMode)
             cmds.rename(wrapDeformer, "{}_wrap".format(input_render_node))
             cmds.select(cl=True)
 
@@ -313,13 +316,32 @@ def populate_layer(techanim_info, group, suffix):
         suffix (str): _something
     """
     for render_node, sim_node in techanim_info.iteritems():
-        input_sim_node = "{}{}".format(sim_node, suffix)
-        input_sim_node = cmds.duplicate(sim_node,
-                                        n=removeNS(input_sim_node),
-                                        un=False)[0]
-        cmds.parent(input_sim_node, group)
-        cmds.setAttr("{}.v".format(input_sim_node), 0)
-        locknHide(input_sim_node)
+        node = "{}{}".format(sim_node, suffix)
+        node = cmds.duplicate(sim_node, n=removeNS(node), un=False)[0]
+        cmds.delete(node, ch=True)
+        cmds.parent(node, group)
+        cmds.setAttr("{}.v".format(node), 0)
+        locknHide(node)
+
+
+@create_chunk
+def add_driven_render_nodes(driver, driven, exclusiveBind=1, falloffMode=1):
+    for render_node in driven:
+        dup_node_name = "{}{}".format(render_node, CONFIG["output_suffix"])
+        dup_node = cmds.duplicate(render_node,
+                                  n=removeNS(dup_node_name),
+                                  un=False)[0]
+        cmds.parent(dup_node, CONFIG["render_output"])
+        cmds.delete(dup_node, ch=True)
+        locknHide(dup_node)
+
+        cmds.select(cl=True)
+        wrapDeformer = create_wrap(driver,
+                                   dup_node,
+                                   exclusiveBind=exclusiveBind,
+                                   falloffMode=falloffMode)
+        cmds.rename(wrapDeformer, "{}_wrap".format(dup_node))
+        cmds.select(cl=True)
 
 
 def create_layer_connections(techanim_info):
@@ -419,6 +441,13 @@ def create_setup(techanim_info, setup_options=None):
     create_layer_connections(techanim_info[RENDER_SIM_KEY])
     create_ncloth_setup(rigid_nodes)
 
+    input_info = {}
+    for render_geo in techanim_info[RENDER_SIM_KEY].keys():
+        input_info[render_geo] = "{}{}".format(render_geo,
+                                               CONFIG["input_suffix"])
+    techanim_info[RENDER_INPUT_KEY] = input_info
+
+    print(techanim_info)
     set_info(CONFIG["techanim_root"],
              CONFIG["nodes_attr"],
              techanim_info)

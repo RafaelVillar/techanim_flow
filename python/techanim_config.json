@@ -1,12 +1,15 @@
 {
+    "#": "suffix for the nodes being created for the setup",
     "input_suffix": "_input",
     "output_suffix": "_output",
+    "#": "group naming",
     "input_layer_name": "input",
     "output_layer_name": "output",
     "render_input": "render_input",
     "render_output": "render_output",
     "sim_input": "sim_input",
     "sim_output": "sim_output",
+    "#": "Top node name",
     "techanim_root": "techanim_setup",
     "sim_base_name": "geo",
     "sim_layer": "sim",
@@ -38,9 +41,11 @@
         }
     },
     "grouping_order": ["input", "pre", "sim", "post", "output"],
+    "cache_dir": "",
     "HOWTO_FILEPATH_DICT": {
         "RenderGeoListView": "images/make_association.gif",
         "SimGeoListView": "images/make_association.gif",
+        "AddRenderGeoButton": "images/add_render_geo.gif",
         "easter_egg": "images/muffin.gif"
     }
 
