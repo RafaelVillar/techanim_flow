@@ -14,14 +14,13 @@ import copy
 from functools import partial
 
 import maya.cmds as cmds
-import maya.OpenMayaUI as omui
-
-from shiboken2 import wrapInstance
 
 try:
     from Qt import QtWidgets, QtGui, QtCore
 except Exception:
     from PySide2 import QtWidgets, QtGui, QtCore
+
+import ui_utils
 
 import creator_utils
 reload(creator_utils)
@@ -38,86 +37,7 @@ for _key, _path in HOWTO_FILEPATH_DICT.iteritems():
     HOWTO_FILEPATH_DICT[_key] = os.path.join(DIR_PATH, os.path.normpath(_path))
 
 
-def genericWarning(parent, warningText):
-    """generic prompt warning with the provided text
-
-    Args:
-        parent (QWidget): Qwidget to be parented under
-        warningText (str): information to display to the user
-
-    Returns:
-        QtCore.Response: of what the user chose. For warnings
-    """
-    selWarning = QtWidgets.QMessageBox(parent)
-    selWarning.setText(warningText)
-    results = selWarning.exec_()
-    return results
-
-
-def mainWindow():
-    """useless, but should get maya main window
-
-    Returns:
-        QMainWindow: of maya main window
-    """
-    mainWindowPtr = omui.MQtUtil.mainWindow()
-    if not mainWindowPtr:
-        return None
-    mayaMainWindow = wrapInstance(long(mainWindowPtr), QtWidgets.QMainWindow)
-    return mayaMainWindow
-
-
-def get_top_level_widgets(class_name=None, object_name=None):
-    """
-    Get existing widgets for a given class name
-
-    Args:
-        class_name (str): Name of class to search top level widgets for
-        object_name (str): Qt object name
-
-    Returns:
-        List of QWidgets
-    """
-    matches = []
-
-    # Find top level widgets matching class name
-    for widget in QtWidgets.QApplication.topLevelWidgets():
-        try:
-            # Matching class
-            if class_name and widget.metaObject().className() == class_name:
-                matches.append(widget)
-            # Matching object name
-            elif object_name and widget.objectName() == object_name:
-                matches.append(widget)
-        # Error: 'PySide2.QtWidgets.QListWidgetItem' object
-        #        has no attribute 'inherits'
-        except AttributeError:
-            continue
-        # Print unhandled to the shell
-        except Exception as e:
-            print(e)
-
-    return matches
-
-
-def close_existing(class_name=None, object_name=None):
-    """
-    Close and delete any existing windows of class_name
-
-    Args:
-        class_name (str): QtWidget class name
-        object_name (str): Qt object name
-
-    Returns: None
-    """
-    for widget in get_top_level_widgets(class_name, object_name):
-        # Close
-        widget.close()
-        # Delete
-        widget.deleteLater()
-
-
-def show(dockable=True, newSceneCallBack=True, *args):
+def show(*args):
     """To launch the ui and not get the same instance
 
     Returns:
@@ -128,14 +48,14 @@ def show(dockable=True, newSceneCallBack=True, *args):
     """
     # global TECH_CREATOR_UI
     try:
-        close_existing(class_name="TechAnimCreatorUI")
+        ui_utils.close_existing(class_name="TechAnimCreatorUI")
     except Exception:
         pass
-    maya_window = mainWindow() or None
-    TECH_CREATOR_UI = TechAnimCreatorUI(parent=maya_window)
-    TECH_CREATOR_UI.show()
-    TECH_CREATOR_UI.adjustSize()
-    return TECH_CREATOR_UI
+    maya_window = ui_utils.mainWindow() or None
+    TECH_UI = TechAnimCreatorUI(parent=maya_window)
+    TECH_UI.show()
+    TECH_UI.adjustSize()
+    return TECH_UI
 
 
 class DisplayImage(QtWidgets.QWidget):
@@ -243,7 +163,6 @@ class AssociateSelectionControl(QtCore.QObject):
         self.association_dict = {}
 
         self.all_recorded = False
-        self.__models = {self.modelA: self.modelB, self.modelB: self.modelA}
         self.viewA.selectionModel().selectionChanged.connect(self.highlight_associated)
         self.viewB.clicked.connect(self.check_create_entry)
 
@@ -446,12 +365,9 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         super(TechAnimCreatorUI, self).__init__(parent=parent)
         self.parent = parent
         self.setWindowTitle(WINDOW_TITLE)
-        self.setObjectName(WINDOW_TITLE)
+        self.setObjectName(self.__class__.__name__)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
         self.setWindowFlags(self.windowFlags())
-
-        # self.setMinimumWidth(400)
-        # self.resize(QtCore.QSize(450, 500))
 
         self.mainLayout = QtWidgets.QVBoxLayout()
         self.setLayout(self.mainLayout)
@@ -748,7 +664,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         if not driver.endswith(CONFIG["output_suffix"]):
             msg = "Driver must be selected last, and be an '{}' node."
             msg = msg.format(CONFIG["output_suffix"])
-            genericWarning(self, msg)
+            ui_utils.genericWarning(self, msg)
             return
         fallOffMode = self.wrap_falloff_cb.currentText()
         exclusiveBind = self.wrap_exclusive_cb.currentIndex() + 1

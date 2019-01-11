@@ -21,32 +21,53 @@ def get_all_setups_roots():
     return ta_roots
 
 
+def get_all_setups_nodes():
+    ta_roots = get_all_setups_roots()
+    ta_nodes = [TechAnim_Setup(x) for x in ta_roots]
+    return ta_nodes
+
+
+def get_all_namespaces():
+    cmds.namespace(setNamespace=':')
+    return cmds.namespaceInfo(listOnlyNamespaces=True, recurse=True)
+
+
 class TechAnim_Setup(object):
     """docstring for TechAnim_Setup"""
-    def __init__(self, root_node, target_namespace):
+    def __init__(self, root_node, target_namespace=None):
         super(TechAnim_Setup, self).__init__()
         self.root_node = root_node
-        # self.techanim_info = {}
+        self.techanim_info = {}
         self.setup_config = {}
+        self.set_config()
 
         if ":" in self.root_node:
             self.techanim_ns = "{}:".format(self.root_node.partition(":")[0])
         else:
             self.techanim_ns = ""
 
-        self.target_namespace = target_namespace.strip(":")
-        self.set_config()
-        self.sim_layers = self.setup_config["grouping_order"][1:-1]
-        self.input_layer = self.setup_config["grouping_order"][0]
-        self.output_layer = self.setup_config["grouping_order"][-1]
-        self.get_association_info()
-        self.create_techanim_connections()
+        sim_layers = self.setup_config["grouping_order"][1:-1]
+        self.sim_layers = ["{}{}".format(self.techanim_ns, x)
+                           for x in sim_layers]
+        self.input_layer = "{}{}".format(self.techanim_ns,
+                                         self.setup_config["grouping_order"][0])
+        self.output_layer = "{}{}".format(self.techanim_ns,
+                                          self.setup_config["grouping_order"][-1])
+
+        if not target_namespace:
+            target_namespace = self.get_target_namespace()
+        self.set_target_namespace(target_namespace)
+        self.refresh_info()
 
     def __str__(self):
         return self.root_node
 
     def __repr__(self):
         return self.root_node
+
+    def set_target_namespace(self, namespace):
+        # do shit
+        self.target_namespace = namespace.strip(":")
 
     def set_config(self):
         str_config = cmds.getAttr("{}.{}".format(self.root_node,
@@ -56,13 +77,37 @@ class TechAnim_Setup(object):
         except Exception:
             self.setup_config = CONFIG
 
-    def get_techanim_nodes_info(self, desired_layers):
+    def refresh_info(self):
+        if not self.is_setup_connected() and not self.target_namespace:
+            return
+        self.get_association_info()
+        self.create_techanim_connections()
+
+    def get_layer_nodes_info(self, desired_layers):
         techanim_nodes_info = {}
         for layer in desired_layers:
             techanim_nodes_info[layer] = cmds.listRelatives(layer,
                                                             ad=True,
                                                             type="transform")
         return techanim_nodes_info
+
+    def is_setup_connected(self):
+        return bool(self.get_target_namespace())
+
+    def get_target_namespace(self):
+        output_group = "{}{}".format(self.techanim_ns,
+                                     self.setup_config["render_output"])
+        namespace = None
+        for output_node in cmds.listRelatives(output_group):
+            output_node_plug = "{}.outMesh".format(output_node)
+            render_node = cmds.listConnections(output_node_plug)
+            if not render_node:
+                continue
+            if ":" in render_node[0]:
+                namespace = render_node[0].rpartition(":")[0]
+                break
+
+        return namespace
 
     def get_association_info(self):
         str_nodes = cmds.getAttr("{}.{}".format(self.root_node,
@@ -103,7 +148,7 @@ class TechAnim_Setup(object):
 
         layers = ["{}{}".format(self.techanim_ns,
                                 self.setup_config["render_output"])]
-        render_output_nodes = self.get_techanim_nodes_info(layers)
+        render_output_nodes = self.get_layer_nodes_info(layers)
         for layer, output_nodes in render_output_nodes.iteritems():
             for oNode in output_nodes:
                 src_plug = "{}.outMesh".format(oNode)
@@ -175,8 +220,7 @@ class TechAnim_Setup(object):
         }
 
         cache_cmd = cache_cmd.format(**cache_arg_info)
-        layers = ["{}{}".format(self.techanim_ns, self.input_layer)]
-        input_nodes = self.get_techanim_nodes_info(layers)
+        input_nodes = self.get_layer_nodes_info([self.input_layer])
         cmds.select(input_nodes.values()[0])
         mel.eval(cache_cmd)
 
@@ -184,8 +228,7 @@ class TechAnim_Setup(object):
         # deleteGeometryCache;
         # performDeleteGeometryCache 0;
         # deleteCacheFile 3 { "delete", "", "geometry" };
-        layers = ["{}{}".format(self.techanim_ns, self.input_layer)]
-        input_nodes = self.get_techanim_nodes_info(layers)
+        input_nodes = self.get_layer_nodes_info([self.input_layer])
         cmds.select(input_nodes.values()[0])
         try:
             mel.eval("performDeleteGeometryCache 0;")
@@ -193,14 +236,13 @@ class TechAnim_Setup(object):
             pass
 
     def is_input_layer_cache(self):
-        layers = ["{}{}".format(self.techanim_ns, self.input_layer)]
-        input_nodes = self.get_techanim_nodes_info(layers)
+        input_nodes = self.get_layer_nodes_info([self.input_layer])
         return self.is_node_cache(input_nodes.values()[0])
 
     def is_sim_layer_cache(self):
         layers = ["{}{}".format(self.techanim_ns,
                                 self.setup_config["sim_layer"])]
-        input_nodes = self.get_techanim_nodes_info(layers)
+        input_nodes = self.get_layer_nodes_info(layers)
         print(input_nodes.values()[0])
         return self.is_node_cache(input_nodes.values()[0])
 
