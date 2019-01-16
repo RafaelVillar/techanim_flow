@@ -14,11 +14,16 @@
     "sim_base_name": "geo",
     "sim_layer": "sim",
     "post_layer": "post",
-    "nCloth_suffix": "nCloth",
-    "rigid_suffix": "rigid",
+    "nCloth_suffix": "_nCloth",
+    "nCloth_output_suffix": "_DISPLAY",
+    "rigid_suffix": "_rigid",
     "nucleus_name": "techanim_nucleus",
     "config_attr": "techanim_config",
     "nodes_attr": "techanim_nodes",
+    "preroll": 25,
+    "postroll": 25,
+    "nodes_to_hide": ["geo_pre", "geo_post", "geo_sim"],
+    "suffixes_to_hide": ["_sim"],
     "grouping": {
         "techanim_setup": {
             "pre": {
@@ -41,7 +46,9 @@
         }
     },
     "grouping_order": ["input", "pre", "sim", "post", "output"],
-    "cache_dir": "",
+    "cache_dir_suffix": "_techanim",
+    "#": "if empty, it will use pythons tmpdir for cache_dir storing.",
+    "cache_dir": "S:/ANIMA/projects/MST3/tmp/techanim",
     "HOWTO_FILEPATH_DICT": {
         "RenderGeoListView": "images/make_association.gif",
         "SimGeoListView": "images/make_association.gif",

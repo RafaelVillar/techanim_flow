@@ -6,39 +6,136 @@ from __future__ import absolute_import
 from __future__ import generators
 from __future__ import division
 
+import os
 import ast
+import copy
+import tempfile
 
 import maya.cmds as cmds
 import maya.mel as mel
 
 import creator_utils
 reload(creator_utils)
-from creator_utils import CONFIG
+
+# =============================================================================
+# constants
+# =============================================================================
+# convenience, it was annoying to type over again
+CONFIG = creator_utils.CONFIG
+# This allows the setup(s) to choose only one cache dir per maya session
+CACHE_DIR_ENV = "TECHANIM_CACHE_SESSION_DIR"
+
+# =============================================================================
+# general functions
+# =============================================================================
 
 
 def get_all_setups_roots():
+    """Get all root nodes of techanim setups using an attr from config
+
+    Returns:
+        list: of all found transforms
+    """
     ta_roots = cmds.ls("*.{}".format(CONFIG["config_attr"]), r=True, o=True)
     return ta_roots
 
 
 def get_all_setups_nodes():
+    """This returns instantiated Techanim_setups
+
+    Returns:
+        list: of TechAnim_Setup classes
+    """
     ta_roots = get_all_setups_roots()
     ta_nodes = [TechAnim_Setup(x) for x in ta_roots]
     return ta_nodes
 
 
 def get_all_namespaces():
+    """Get all of the namespaces
+
+    Returns:
+        list: of maya namespaces
+    """
     cmds.namespace(setNamespace=':')
     return cmds.namespaceInfo(listOnlyNamespaces=True, recurse=True)
 
 
+def get_all_target_namespaces():
+    """best guess at getting namespaces that the user would be interested
+    in connecting to.
+
+    Returns:
+        list: of filtered namespaces
+    """
+    setup_roots = get_all_setups_roots()
+    techanim_ns = [x.split(":")[0] for x in setup_roots]
+    namespaces = get_all_namespaces()
+    filtered_ns = []
+    for ns in namespaces:
+        if ns in ["UI", "ui", "shared", "Shared"] + techanim_ns:
+            continue
+        filtered_ns.append(ns)
+    return filtered_ns
+
+
+def get_added_dicts(a, b):
+    """Add two dictionaries together, return new dictionary.
+    if key in B already exists in A, do not override. None destructive.
+
+    Args:
+        a (dict): dictionary you want to ADD to
+        b (dict): dict you want to add from, the new keys
+
+    Returns:
+        dict: copied from a, with b keys added
+    """
+    tmp = copy.deepcopy(a)
+    for key, val in b.iteritems():
+        if key not in tmp:
+            tmp[key] = val
+    return tmp
+
+
+def get_cache_dir(root_dir, suffix):
+    """Use pythons built in tempfile to safely and quickly get a dir to save to
+
+    Args:
+        root_dir (str): root directory to start from
+        suffix (str): to be added to the name of the made dir
+
+    Returns:
+        str: dirpath
+    """
+    tmp_dir = tempfile.mkdtemp(suffix=suffix, dir=os.path.abspath(root_dir))
+    return tmp_dir
+
+
 class TechAnim_Setup(object):
-    """docstring for TechAnim_Setup"""
+
+    """Convencience functionality to manager a techanim setup for simulations
+
+    Attributes:
+        input_layer (str): of the input layer top node
+        nodes_to_hide (str): nodes not to display in the techanim_managerUI
+        output_layer (str): name of the output layer topnode
+        root_node (str): root to this setup
+        setup_config (dict): a config that was pulled from an attr on setup
+        sim_layers (list): of the 'sim' top nodes, pre, sim, post
+        suffixes_to_hide (list): nodes with suffix wont be shown in the ui
+        target_namespace (str): desired namespace of a rig or alembin to
+        attach to
+        techanim_info (dict): of useful information for the UI or user to interact with
+        techanim_ns (str): namespace of this setup
+    """
+
     def __init__(self, root_node, target_namespace=None):
         super(TechAnim_Setup, self).__init__()
         self.root_node = root_node
         self.techanim_info = {}
         self.setup_config = {}
+        self.nodes_to_hide = []
+        self.suffixes_to_hide = []
         self.set_config()
 
         if ":" in self.root_node:
@@ -46,13 +143,11 @@ class TechAnim_Setup(object):
         else:
             self.techanim_ns = ""
 
+        # self.sim_layer = self._wrap_ns(self.setup_config["sim_layer"])
         sim_layers = self.setup_config["grouping_order"][1:-1]
-        self.sim_layers = ["{}{}".format(self.techanim_ns, x)
-                           for x in sim_layers]
-        self.input_layer = "{}{}".format(self.techanim_ns,
-                                         self.setup_config["grouping_order"][0])
-        self.output_layer = "{}{}".format(self.techanim_ns,
-                                          self.setup_config["grouping_order"][-1])
+        self.sim_layers = [self._wrap_ns(x) for x in sim_layers]
+        self.input_layer = self._wrap_ns(self.setup_config["grouping_order"][0])
+        self.output_layer = self._wrap_ns(self.setup_config["grouping_order"][-1])
 
         if not target_namespace:
             target_namespace = self.get_target_namespace()
@@ -60,30 +155,93 @@ class TechAnim_Setup(object):
         self.refresh_info()
 
     def __str__(self):
+        """so it prints the name of the node
+
+        Returns:
+            str: name of the node
+        """
         return self.root_node
 
     def __repr__(self):
+        """So it can print the name of the node
+
+        Returns:
+            str: name of root node
+        """
         return self.root_node
 
     def set_target_namespace(self, namespace):
+        """when the target namespace is set, make any changes or prep
+
+        Args:
+            namespace (str): of the target ns
+        """
         # do shit
         self.target_namespace = namespace.strip(":")
 
+    def _wrap_ns(self, node):
+        """convenience function, wrap any node belonging to this setup in the
+        namespace retrieved when initialized
+
+        Args:
+            node (str): node in setup to be wrapped with ns
+
+        Returns:
+            str: wrapped shit
+        """
+        return "{}{}".format(self.techanim_ns, node)
+
+    @property
+    def get_cache_dir(self):
+        """get the cache dir that will be used during the creation of any new
+        caches
+
+        Returns:
+            str: should be good on any os
+        """
+        cache_dir = os.environ.get(CACHE_DIR_ENV)
+        if cache_dir:
+            return cache_dir
+        else:
+            cache_dir = get_cache_dir(CONFIG["cache_dir"],
+                                      CONFIG["cache_dir_suffix"])
+            os.environ[CACHE_DIR_ENV] = cache_dir
+        return os.path.abspath(cache_dir)
+
     def set_config(self):
+        """set config on this setup. Decide if it will merge with stored, or
+        follow env variable one. TODO
+        """
         str_config = cmds.getAttr("{}.{}".format(self.root_node,
                                                  CONFIG["config_attr"]))
         try:
-            self.setup_config = ast.literal_eval(str_config)
+            # THIS NEEDS TO BE REVISTED. I am adding shit from file
+            stored_config = ast.literal_eval(str_config)
+            self.setup_config = get_added_dicts(stored_config, CONFIG)
         except Exception:
+            cmds.warning("Could not retrieve CONFIG stored on setup!")
             self.setup_config = CONFIG
 
     def refresh_info(self):
+        """refresh the info dict on setup with all new information
+
+        Returns:
+            dict: of new information
+        """
         if not self.is_setup_connected() and not self.target_namespace:
             return
         self.get_association_info()
         self.create_techanim_connections()
 
     def get_layer_nodes_info(self, desired_layers):
+        """return a dictionary of the topnode_name: [children of node]
+
+        Args:
+            desired_layers (list): of nodes to query
+
+        Returns:
+            dict: {node: [list of all children]}
+        """
         techanim_nodes_info = {}
         for layer in desired_layers:
             techanim_nodes_info[layer] = cmds.listRelatives(layer,
@@ -92,12 +250,22 @@ class TechAnim_Setup(object):
         return techanim_nodes_info
 
     def is_setup_connected(self):
+        """searches all the output nodes to see if they are connected
+        to anything, they should only every be connected to target animation
+
+        Returns:
+            bool: True False
+        """
         return bool(self.get_target_namespace())
 
     def get_target_namespace(self):
-        output_group = "{}{}".format(self.techanim_ns,
-                                     self.setup_config["render_output"])
-        namespace = None
+        """Best guess based on connections for the target ns
+
+        Returns:
+            str: empty string or target
+        """
+        output_group = self._wrap_ns(self.setup_config["render_output"])
+        namespace = ""
         for output_node in cmds.listRelatives(output_group):
             output_node_plug = "{}.outMesh".format(output_node)
             render_node = cmds.listConnections(output_node_plug)
@@ -109,7 +277,31 @@ class TechAnim_Setup(object):
 
         return namespace
 
+    def get_nuclei(self):
+        """Nuclei, get them shits. Belonging to this setup.
+
+        Returns:
+            list: of found nuclei
+        """
+        sim_layer = self._wrap_ns(self.setup_config["sim_layer"])
+        return cmds.listRelatives(sim_layer, ad=True, type="nucleus") or []
+
+    def set_start_nuclei_frame(self, start_frame, nucleus_nodes=None):
+        """set the start from of all nucleus nodes in this setup
+
+        Args:
+            start_frame (int): start frame
+            nucleus_nodes (list, optional): if not provided, will auto search
+        """
+        if not nucleus_nodes:
+            nucleus_nodes = self.get_nuclei()
+        for nuc in nucleus_nodes:
+            cmds.setAttr("{}.startFrame".format(nuc), start_frame)
+
     def get_association_info(self):
+        """after target ns set, put all the information together that the
+        ui/user will need
+        """
         str_nodes = cmds.getAttr("{}.{}".format(self.root_node,
                                                 CONFIG["nodes_attr"]))
         temp_info = ast.literal_eval(str_nodes)
@@ -129,6 +321,11 @@ class TechAnim_Setup(object):
 
         self.techanim_info[creator_utils.RENDER_INPUT_KEY] = input_info
 
+        for node in self.setup_config["nodes_to_hide"]:
+            self.nodes_to_hide.append("{}{}".format(self.techanim_ns, node))
+
+        self.suffixes_to_hide = self.setup_config["suffixes_to_hide"]
+
     def create_techanim_connections(self):
         """We are connecting the techanim to the rig on every initialization,
         check into this later to see if this is best practice or not.
@@ -146,8 +343,7 @@ class TechAnim_Setup(object):
                                  "{}.inMesh".format(destination),
                                  f=True)
 
-        layers = ["{}{}".format(self.techanim_ns,
-                                self.setup_config["render_output"])]
+        layers = [self._wrap_ns(self.setup_config["render_output"])]
         render_output_nodes = self.get_layer_nodes_info(layers)
         for layer, output_nodes in render_output_nodes.iteritems():
             for oNode in output_nodes:
@@ -161,6 +357,13 @@ class TechAnim_Setup(object):
                     cmds.connectAttr(src_plug, dest_plug, f=True)
 
     def show_nodes(self, nodes, isolate=False, select=False):
+        """Displays the desired nodes and any parent nodes that may be hidden
+
+        Args:
+            nodes (list): of desired nodes
+            isolate (bool, optional): isolate in viewport
+            select (bool, optional): should desired nodes be selected as well
+        """
         cmds.hide(cmds.listRelatives(self.root_node,
                                      ad=True,
                                      type="transform"))
@@ -174,7 +377,14 @@ class TechAnim_Setup(object):
             cmds.isolateSelect(isolated_panel, state=True)
             cmds.isolateSelect(isolated_panel, aso=True)
 
-    def cache_input_layer(self, start_frame, end_frame):
+    def cache_input_layer(self, start_frame, end_frame, cache_dir=None):
+        """Using mel to create the caches on the input later nodes
+
+        Args:
+            start_frame (int): start frame
+            end_frame (int): end frame
+            cache_dir (str, optional): path to desired dir, or will auto search
+        """
         # Description:
         # Create cache files on disk for the selected shape(s) according
         # to the specified flags described below.
@@ -210,12 +420,15 @@ class TechAnim_Setup(object):
         # $args[16] = 0/1, whether to export in local or world space
         #                            0    1     2       3       4    5  6   7  8     9     10   11   12  13  14   15   16
         # doCreateGeometryCache 6 { "2", "1", "10", "OneFile", "1", "","1","","0", "add", "0", "1", "1","0","1","mcx","0" } ;
-
+        try:
+            self.delete_input_layer_cache()
+        except Exception:
+            pass
         cache_cmd = 'doCreateGeometryCache 6 {{ "0", "{start_frame}", "{end_frame}", "OneFile", "1", "{cache_dir}", "1", "", "0", "replace", "1", "1", "1","0","1","mcx","{world_space}" }} ;'
         cache_arg_info = {
             "start_frame": start_frame,
             "end_frame": end_frame,
-            "cache_dir": self.setup_config["cache_dir"],
+            "cache_dir": cache_dir or self.get_cache_dir.replace("\\", "/"),
             "world_space": 1
         }
 
@@ -224,38 +437,84 @@ class TechAnim_Setup(object):
         cmds.select(input_nodes.values()[0])
         mel.eval(cache_cmd)
 
+    def delete_sim_cache(self, nodes):
+        """There is an annoying mel bug that if you run delete using mel
+        it will still error even if wrapped. So we do a search before trying.
+
+        Args:
+            nodes (list): of nodes to delete caches on, they will be searched
+        """
+        cached_nodes = []
+        print('deleteCacheFile 2 { "delete", "" } ;')
+
+        cached_nodes = self.is_node_cached(nodes)
+        if cached_nodes:
+            cmds.select(cached_nodes)
+            mel.eval('deleteCacheFile 2 { "delete", "" } ;')
+
     def delete_input_layer_cache(self):
+        """delete input layer on any nodes
+        """
         # deleteGeometryCache;
         # performDeleteGeometryCache 0;
         # deleteCacheFile 3 { "delete", "", "geometry" };
         input_nodes = self.get_layer_nodes_info([self.input_layer])
-        cmds.select(input_nodes.values()[0])
-        try:
-            mel.eval("performDeleteGeometryCache 0;")
-        except Exception:
-            pass
+        cached_nodes = self.is_node_cached(input_nodes.values()[0])
+        if cached_nodes:
+            cmds.select(cached_nodes)
+            try:
+                mel.eval("performDeleteGeometryCache 0;")
+            except Exception:
+                pass
 
-    def is_input_layer_cache(self):
+    def is_input_layer_cached(self):
+        """does the input layer have any nodes with caches on them
+
+        Returns:
+            list: of nodes with caches on them
+        """
         input_nodes = self.get_layer_nodes_info([self.input_layer])
-        return self.is_node_cache(input_nodes.values()[0])
+        return self.is_node_cached(input_nodes.values()[0])
 
-    def is_sim_layer_cache(self):
-        layers = ["{}{}".format(self.techanim_ns,
-                                self.setup_config["sim_layer"])]
+    def is_sim_layer_cached(self):
+        """are there any nodes in the sim layer that have cache nodes on them
+
+        Returns:
+            list: of nodes with caches on them
+        """
+        layers = [self._wrap_ns(self.setup_config["sim_layer"])]
         input_nodes = self.get_layer_nodes_info(layers)
-        print(input_nodes.values()[0])
-        return self.is_node_cache(input_nodes.values()[0])
+        return self.is_node_cached(input_nodes.values()[0])
 
-    def is_node_cache(self, nodes):
+    def is_node_cached(self, nodes):
+        """are the specific nodes supplied cached in anyway
+
+        Args:
+            nodes (list): of nodes that may be cached
+
+        Returns:
+            list: of nodes containing cache nodes
+        """
         nodes_with_cache = []
         for node in nodes:
             for shape in cmds.listRelatives(node, shapes=True) or []:
-                if cmds.listConnections(shape, type=["historySwitch",
-                                                     "cacheFile"]):
+                if cmds.listConnections(shape, type="historySwitch"):
                     nodes_with_cache.extend([node, shape])
+                elif cmds.listConnections(shape, type="cacheFile"):
+                    nodes_with_cache.extend([node, shape])
+
         return nodes_with_cache
 
-    def cache_sim_nodes(self, nodes, start_frame, end_frame):
+    def cache_sim_nodes(self, nodes, start_frame, end_frame, cache_dir=None):
+        """More annoying mel shit, you cannot run a cache on a node
+        that already has a cache on it without getting a UI pop up.
+
+        Args:
+            nodes (list): of nodes to cache
+            start_frame (int): start frame
+            end_frame (int): end frame
+            cache_dir (str, optional): if none, will auto search
+        """
         # Create cache files on disk for the select ncloth object(s) according
         # to the specified flags described below.
 
@@ -286,14 +545,15 @@ class TechAnim_Setup(object):
         # $args[15] = cache format type: mcc or mcx.
         #                          0    1     2       3       4    5  6   7  8     9     10   11   12  13  14   15
         # doCreateNclothCache 5 { "2", "1", "10", "OneFile", "1", "","0","","0", "add", "0", "1", "1","0","1","mcx" } ;
-        cache_cmd = 'doCreateNclothCache 5 {{ "0", "{start_frame}", "{end_frame}", "OneFile", "1", "{cache_dir}", "1", "", "0", "replace", "1", "1", "1","0","1","mcx" }};'
+        cache_cmd = 'doCreateNclothCache 5 {{ "3", "{start_frame}", "{end_frame}", "OneFile", "1", "{cache_dir}", "1", "", "0", "replace", "0", "1", "1","0","1","mcx" }};'
 
         cache_arg_info = {
             "start_frame": start_frame,
             "end_frame": end_frame,
-            "cache_dir": self.setup_config["cache_dir"]
+            "cache_dir": cache_dir or self.get_cache_dir.replace("\\", "/")
         }
-
+        self.delete_sim_cache(nodes)
         cache_cmd = cache_cmd.format(**cache_arg_info)
         cmds.select(nodes)
+        print(cache_cmd)
         mel.eval(cache_cmd)

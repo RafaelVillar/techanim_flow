@@ -648,7 +648,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         rigid_nodes = ast.literal_eval(self.passive_edit.text() or "[]")
         tmp["rigid_nodes"] = rigid_nodes
         setup_options = {
-            "fallOffMode": self.wrap_falloff_cb.currentText()[0],
+            "falloffMode": self.wrap_falloff_cb.currentText()[0],
             "exclusiveBind": self.wrap_exclusive_cb.currentIndex() + 1
         }
         print(association_dict)
@@ -666,12 +666,12 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
             msg = msg.format(CONFIG["output_suffix"])
             ui_utils.genericWarning(self, msg)
             return
-        fallOffMode = self.wrap_falloff_cb.currentText()
+        falloffMode = self.wrap_falloff_cb.currentText()
         exclusiveBind = self.wrap_exclusive_cb.currentIndex() + 1
         creator_utils.add_driven_render_nodes(driver,
                                               driven,
                                               exclusiveBind=exclusiveBind,
-                                              falloffMode=fallOffMode)
+                                              falloffMode=falloffMode)
 
     def display_howto(self, howto_key):
         filepath = HOWTO_FILEPATH_DICT.get(howto_key)
@@ -700,6 +700,8 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
 if __name__ == '__main__':
     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
     qapp = QtWidgets.QApplication(sys.argv)
+    import maya.standalone
+    maya.standalone.initialize("Python")
     qapp.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
     qapp.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
     tac_UI = show()

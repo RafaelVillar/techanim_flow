@@ -17,15 +17,12 @@ import maya.cmds as cmds
 
 # techanim
 import config_io
-# pep8 faux pas to reload, but this ensures up to date config
 reload(config_io)
-
-from config_io import CONFIG
-
 
 # =============================================================================
 # Constants
 # =============================================================================
+CONFIG = config_io.CONFIG
 
 RIGID_KEY = "rigid_nodes"
 RENDER_SIM_KEY = "render_sim"
@@ -232,7 +229,7 @@ def create_rigid_nodes(rigid_nodes, nucleus_node):
                 cmds.select(rigid_node, nucleus_node)
                 rigid_shape = mel.eval("makeCollideNCloth;")[0]
                 rigid_trans = cmds.listRelatives(rigid_shape, p=True)[0]
-                rigid_name = "{}_{}".format(rigid_node, CONFIG["rigid_suffix"])
+                rigid_name = "{}{}".format(rigid_node, CONFIG["rigid_suffix"])
                 rigid_trans = cmds.rename(rigid_trans, rigid_name)
                 cmds.parent(rigid_trans, layer)
                 locknHide(rigid_trans)
@@ -326,6 +323,15 @@ def populate_layer(techanim_info, group, suffix):
 
 @create_chunk
 def add_driven_render_nodes(driver, driven, exclusiveBind=1, falloffMode=1):
+    """add nodes to the setup of the driver. This allows a sim node to
+    drive (via a wrap) multiple render nodes
+
+    Args:
+        driver (str): of driver
+        driven (list): of nodes to be duplicated, parents, driven
+        exclusiveBind (int, optional): wrap settings
+        falloffMode (int, optional): wrap settings
+    """
     for render_node in driven:
         dup_node_name = "{}{}".format(render_node, CONFIG["output_suffix"])
         dup_node = cmds.duplicate(render_node,
@@ -378,19 +384,21 @@ def create_ncloth_setup(rigid_nodes):
     cmds.select(cl=True)
     cmds.select(sim_geo)
     nCloth_shapes = mel.eval("createNCloth 1;")
-    print(nCloth_shapes)
     for nShape in nCloth_shapes:
         sim_mesh = cmds.listConnections("{}.inputMesh".format(nShape))[0]
-        nShape = cmds.rename(nShape, "{}_{}Shape".format(sim_mesh,
+        nShape = cmds.rename(nShape, "{}{}Shape".format(sim_mesh,
                                                          CONFIG["nCloth_suffix"]))
         nTrans = cmds.listRelatives(nShape, p=True)[0]
-        nTrans = cmds.rename(nTrans, "{}_{}".format(sim_mesh,
+        nTrans = cmds.rename(nTrans, "{}{}".format(sim_mesh,
                                                     CONFIG["nCloth_suffix"]))
 
         cloth_trans = cmds.listConnections("{}.outputMesh".format(nShape))
-        cloth_name = "{}_{}_OUTPUT".format(sim_mesh, CONFIG["nCloth_suffix"])
-        cloth_name_shape = "{}_{}_OUTPUTShape".format(sim_mesh,
-                                                      CONFIG["nCloth_suffix"])
+        cloth_name = "{}{}{}".format(sim_mesh,
+                                     CONFIG["nCloth_suffix"],
+                                     CONFIG["nCloth_output_suffix"])
+        cloth_name_shape = "{}{}{}Shape".format(sim_mesh,
+                                                CONFIG["nCloth_suffix"],
+                                                CONFIG["nCloth_output_suffix"])
 
         cloth_trans = cmds.rename(cloth_trans, cloth_name, ignoreShape=False)
         locknHide(cloth_trans)
