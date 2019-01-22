@@ -22,13 +22,16 @@ except Exception:
 
 import ui_utils
 
+import config_io
 import creator_utils
+reload(config_io)
 reload(creator_utils)
-from creator_utils import CONFIG
 
-# -----------------------------------------------------------------------------
+# =============================================================================
 # Constants
-# -----------------------------------------------------------------------------
+# =============================================================================
+CONFIG = config_io.CONFIG
+
 DIR_PATH = os.path.dirname(__file__)
 WINDOW_TITLE = "TechAnim Creator"
 HOWTO_FILEPATH_DICT = CONFIG.get("HOWTO_FILEPATH_DICT", {})
@@ -439,10 +442,10 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         self.add_driven_nodes_btn.clicked.connect(self.add_driven_render_nodes)
 
     def select_from_list(self, modelIndex):
-        """Select maya nodes from the provided modelIndex
+        """Select the node from the listview in the scene
 
         Args:
-            modelIndex (TYPE): Description
+            modelIndex (QModelIndex): To get data from
         """
         cmds.select(modelIndex.data())
 
@@ -507,9 +510,6 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
 
         Args:
             modelIndex (QtGui.modelIndex): to query the number of children
-
-        Args:
-            modelIndex (TYPE): Description
         """
         model = self.associate_control.modelB
         self.sim_label.setText("Sim Geo ({})".format(model.rowCount()))
@@ -615,8 +615,6 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         return group_widget
 
     def utils_layout(self):
-        """
-        """
         group_widget = QtWidgets.QGroupBox("Utils")
         # falloff -------------------------------------------------------------
         layout = QtWidgets.QVBoxLayout()
@@ -658,6 +656,10 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
                                    setup_options=setup_options)
 
     def add_driven_render_nodes(self):
+        """Duplicate the selected nodes, parent them to the setup and drive
+        them with a wrap deformer
+
+        """
         selected = cmds.ls(sl=True)
         driven = selected[:-1]
         driver = selected[-1]
@@ -674,6 +676,11 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
                                               falloffMode=falloffMode)
 
     def display_howto(self, howto_key):
+        """Display the image over the widget
+
+        Args:
+            howto_key (str): key to the image
+        """
         filepath = HOWTO_FILEPATH_DICT.get(howto_key)
         if filepath and os.path.exists(filepath):
             self.movie_screen.display_gif(filepath)

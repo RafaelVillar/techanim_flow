@@ -23,7 +23,9 @@
     "preroll": 25,
     "postroll": 25,
     "nodes_to_hide": ["geo_pre", "geo_post", "geo_sim"],
-    "suffixes_to_hide": ["_sim"],
+    "suffixes_to_hide": ["_sim", "_DISPLAY"],
+    "#": "The creator will make the grouping with the names and in the order",
+    "#": "shown below.",
     "grouping": {
         "techanim_setup": {
             "pre": {

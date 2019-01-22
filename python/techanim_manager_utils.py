@@ -10,6 +10,7 @@ import os
 import ast
 import copy
 import tempfile
+from functools import wraps
 
 import maya.cmds as cmds
 import maya.mel as mel
@@ -192,6 +193,16 @@ class TechAnim_Setup(object):
         return "{}{}".format(self.techanim_ns, node)
 
     @property
+    def is_setup_referenced(self):
+        return cmds.referenceQuery(self.root_node, inr=True)
+
+    def flatten_setup(self):
+        if self.is_setup_referenced:
+            ref_node = cmds.referenceQuery(self.root_node, rfn=True)
+            ref_file = cmds.referenceQuery(ref_node, f=True)
+            cmds.file(ref_file, ir=True)
+
+    @property
     def get_cache_dir(self):
         """get the cache dir that will be used during the creation of any new
         caches
@@ -207,6 +218,37 @@ class TechAnim_Setup(object):
                                       CONFIG["cache_dir_suffix"])
             os.environ[CACHE_DIR_ENV] = cache_dir
         return os.path.abspath(cache_dir)
+
+    def __toggle_nuclei(func):
+        """
+        """
+        @wraps(func)
+        def run_disabled_nuclei(self, *args, **kwargs):
+            self.toggle_nuclei(value=0)
+            try:
+                return func(self, *args, **kwargs)
+            except Exception as e:
+                print(e)
+            finally:
+                self.toggle_nuclei(value=1)
+
+        return run_disabled_nuclei
+
+    def toggle_view(func):
+        """
+        """
+        @wraps(func)
+        def turn_off_display(self, *args, **kwargs):
+            gMainPane = mel.eval('global string $gMainPane; $temp = $gMainPane;')
+            cmds.paneLayout(gMainPane, edit=True, manage=False)
+            try:
+                return func(self, *args, **kwargs)
+            except Exception as e:
+                print(e)
+            finally:
+                cmds.paneLayout(gMainPane, edit=True, manage=True)
+
+        return turn_off_display
 
     def set_config(self):
         """set config on this setup. Decide if it will merge with stored, or
@@ -286,6 +328,12 @@ class TechAnim_Setup(object):
         sim_layer = self._wrap_ns(self.setup_config["sim_layer"])
         return cmds.listRelatives(sim_layer, ad=True, type="nucleus") or []
 
+    def toggle_nuclei(self, nuclei=None, value=0):
+        if not nuclei:
+            nuclei = self.get_nuclei()
+        for nuke in nuclei:
+            cmds.setAttr("{}.enable".format(nuke), value)
+
     def set_start_nuclei_frame(self, start_frame, nucleus_nodes=None):
         """set the start from of all nucleus nodes in this setup
 
@@ -307,16 +355,23 @@ class TechAnim_Setup(object):
         temp_info = ast.literal_eval(str_nodes)
 
         self.techanim_info = {}
-        rigid_key = creator_utils.RIGID_KEY
-        rigid_nodes = ["{}:{}".format(self.target_namespace,
-                                      creator_utils.removeNS(node)) for node in temp_info[rigid_key]]
-        self.techanim_info[rigid_key] = rigid_nodes
+        rigid_info = {}
+        for render_node in temp_info[creator_utils.RIGID_KEY]:
+            render_node = "{}:{}".format(self.target_namespace,
+                                         creator_utils.removeNS(render_node))
+            input_node = "{}{}{}".format(self.techanim_ns,
+                                         creator_utils.removeNS(render_node),
+                                         self.setup_config["input_suffix"])
+            rigid_info[render_node] = input_node
+        self.techanim_info[creator_utils.RIGID_KEY] = rigid_info
+
         input_info = {}
         tmp_iter = temp_info[creator_utils.RENDER_INPUT_KEY].iteritems()
         for render_node, input_node in tmp_iter:
             render_node = "{}:{}".format(self.target_namespace,
                                          creator_utils.removeNS(render_node))
-            input_node = "{}{}".format(self.techanim_ns, creator_utils.removeNS(input_node))
+            input_node = "{}{}".format(self.techanim_ns,
+                                       creator_utils.removeNS(input_node))
             input_info[render_node] = input_node
 
         self.techanim_info[creator_utils.RENDER_INPUT_KEY] = input_info
@@ -326,11 +381,7 @@ class TechAnim_Setup(object):
 
         self.suffixes_to_hide = self.setup_config["suffixes_to_hide"]
 
-    def create_techanim_connections(self):
-        """We are connecting the techanim to the rig on every initialization,
-        check into this later to see if this is best practice or not.
-        """
-        input_info = self.techanim_info[creator_utils.RENDER_INPUT_KEY]
+    def _create_input_layer_connections(self, input_info):
         for source, destination in input_info.iteritems():
             source_deformer = cmds.listConnections("{}.inMesh".format(source),
                                                    plugs=True)
@@ -339,10 +390,22 @@ class TechAnim_Setup(object):
                 if (source_deformer[0].rpartition(".")[0]
                         in cmds.listRelatives(self.root_node, ad=True)):
                     continue
-                cmds.connectAttr(source_deformer[0],
-                                 "{}.inMesh".format(destination),
-                                 f=True)
+                dest_plug = "{}.inMesh".format(destination)
+                if cmds.isConnected(source_deformer[0], dest_plug):
+                    continue
+                cmds.connectAttr(source_deformer[0], dest_plug, f=True)
 
+    def create_techanim_connections(self):
+        """We are connecting the techanim to the rig on every initialization,
+        check into this later to see if this is best practice or not.
+        """
+        self.flatten_setup()
+        input_info = self.techanim_info[creator_utils.RENDER_INPUT_KEY]
+        self._create_input_layer_connections(input_info)
+        rigid_info = self.techanim_info[creator_utils.RIGID_KEY]
+        self._create_input_layer_connections(rigid_info)
+
+        # output connections to the rig/alembic
         layers = [self._wrap_ns(self.setup_config["render_output"])]
         render_output_nodes = self.get_layer_nodes_info(layers)
         for layer, output_nodes in render_output_nodes.iteritems():
@@ -377,6 +440,8 @@ class TechAnim_Setup(object):
             cmds.isolateSelect(isolated_panel, state=True)
             cmds.isolateSelect(isolated_panel, aso=True)
 
+    @toggle_view
+    @__toggle_nuclei
     def cache_input_layer(self, start_frame, end_frame, cache_dir=None):
         """Using mel to create the caches on the input later nodes
 
@@ -445,7 +510,6 @@ class TechAnim_Setup(object):
             nodes (list): of nodes to delete caches on, they will be searched
         """
         cached_nodes = []
-        print('deleteCacheFile 2 { "delete", "" } ;')
 
         cached_nodes = self.is_node_cached(nodes)
         if cached_nodes:
@@ -505,6 +569,7 @@ class TechAnim_Setup(object):
 
         return nodes_with_cache
 
+    @toggle_view
     def cache_sim_nodes(self, nodes, start_frame, end_frame, cache_dir=None):
         """More annoying mel shit, you cannot run a cache on a node
         that already has a cache on it without getting a UI pop up.

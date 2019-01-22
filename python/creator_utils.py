@@ -214,6 +214,11 @@ def create_rigid_nodes(rigid_nodes, nucleus_node):
     for layer in CONFIG["grouping_order"][:sim_index + 1]:
         for rNode in rigid_nodes:
             rigid_node = "{}_{}".format(rNode, layer)
+            if layer == CONFIG["sim_layer"]:
+                rigid_node = "{}_{}{}{}".format(rNode,
+                                                layer,
+                                                CONFIG["rigid_suffix"],
+                                                CONFIG["nCloth_output_suffix"])
             rigid_node = cmds.duplicate(rNode,
                                         n=removeNS(rigid_node),
                                         un=False)[0]
@@ -229,13 +234,15 @@ def create_rigid_nodes(rigid_nodes, nucleus_node):
                 cmds.select(rigid_node, nucleus_node)
                 rigid_shape = mel.eval("makeCollideNCloth;")[0]
                 rigid_trans = cmds.listRelatives(rigid_shape, p=True)[0]
-                rigid_name = "{}{}".format(rigid_node, CONFIG["rigid_suffix"])
+                rigid_name = rigid_node.replace(CONFIG["nCloth_output_suffix"],
+                                                "")
+                # rigid_name = "{}{}".format(rigid_name, CONFIG["rigid_suffix"])
                 rigid_trans = cmds.rename(rigid_trans, rigid_name)
                 cmds.parent(rigid_trans, layer)
                 locknHide(rigid_trans)
 
     # create all the connections with the collected info
-    for rigid_layers in chunks(connection_order, sim_index + 2):
+    for rigid_layers in chunks(connection_order[1:], sim_index + 2):
         for index, node in enumerate(rigid_layers):
             source_plug = "{}Shape.outMesh".format(node)
             next_val = index + 1
@@ -281,26 +288,26 @@ def populate_connection_layer(techanim_info,
         wrap (bool, optional): create a wrap between the keys:value
     """
 
-    for render_node, sim_node in techanim_info.iteritems():
-        input_render_node = "{}{}".format(render_node, suffix)
-        input_render_node = cmds.duplicate(render_node,
-                                           n=removeNS(input_render_node),
+    for driverR_node, driveN_node in techanim_info.iteritems():
+        input_driveR_node = "{}{}".format(driverR_node, suffix)
+        input_driveR_node = cmds.duplicate(driverR_node,
+                                           n=removeNS(input_driveR_node),
                                            un=False)[0]
-        cmds.parent(input_render_node, groupA)
-        locknHide(input_render_node)
+        cmds.parent(input_driveR_node, groupA)
+        locknHide(input_driveR_node)
 
-        input_sim_node = "{}{}".format(sim_node, suffix)
-        input_sim_node = cmds.duplicate(sim_node,
-                                        n=removeNS(input_sim_node),
-                                        un=False)[0]
-        cmds.parent(input_sim_node, groupB)
-        locknHide(input_sim_node)
+        input_driveN_node = "{}{}".format(driveN_node, suffix)
+        input_driveN_node = cmds.duplicate(driveN_node,
+                                           n=removeNS(input_driveN_node),
+                                           un=False)[0]
+        cmds.parent(input_driveN_node, groupB)
+        locknHide(input_driveN_node)
         if wrap:
-            wrapDeformer = create_wrap(input_sim_node,
-                                       input_render_node,
+            wrapDeformer = create_wrap(input_driveR_node,
+                                       input_driveN_node,
                                        exclusiveBind=exclusiveBind,
                                        falloffMode=falloffMode)
-            cmds.rename(wrapDeformer, "{}_wrap".format(input_render_node))
+            cmds.rename(wrapDeformer, "{}_wrap".format(input_driveR_node))
             cmds.select(cl=True)
 
 
@@ -365,7 +372,7 @@ def create_layer_connections(techanim_info):
                 break
             dest_node = "{}_{}".format(removeNS(sim_node),
                                        CONFIG["grouping_order"][next_val])
-
+            # print(dest_node)
             cmds.connectAttr("{}.outMesh".format(source_node),
                              "{}.inMesh".format(dest_node),
                              force=True)
@@ -380,17 +387,16 @@ def create_ncloth_setup(rigid_nodes):
     """
     sim_group = "{}_{}".format(CONFIG["sim_base_name"], CONFIG["sim_layer"])
     sim_geo = cmds.listRelatives(sim_group)
-    print(sim_geo)
     cmds.select(cl=True)
     cmds.select(sim_geo)
     nCloth_shapes = mel.eval("createNCloth 1;")
     for nShape in nCloth_shapes:
         sim_mesh = cmds.listConnections("{}.inputMesh".format(nShape))[0]
         nShape = cmds.rename(nShape, "{}{}Shape".format(sim_mesh,
-                                                         CONFIG["nCloth_suffix"]))
+                                                        CONFIG["nCloth_suffix"]))
         nTrans = cmds.listRelatives(nShape, p=True)[0]
         nTrans = cmds.rename(nTrans, "{}{}".format(sim_mesh,
-                                                    CONFIG["nCloth_suffix"]))
+                                                   CONFIG["nCloth_suffix"]))
 
         cloth_trans = cmds.listConnections("{}.outputMesh".format(nShape))
         cloth_name = "{}{}{}".format(sim_mesh,
@@ -409,8 +415,10 @@ def create_ncloth_setup(rigid_nodes):
 
         next_layer_mesh = sim_mesh.replace(CONFIG["sim_layer"],
                                            CONFIG["post_layer"])
+        # print(next_layer_mesh)
         cmds.connectAttr("{}.outMesh".format(cloth_shape),
-                         "{}.inMesh".format(next_layer_mesh), f=True)
+                         "{}.inMesh".format(next_layer_mesh),
+                         f=True)
 
         cmds.parent([nTrans, cloth_trans],
                     cmds.listRelatives(sim_mesh, p=True)[0])
