@@ -1,4 +1,25 @@
 # -*- coding: utf-8 -*-
+"""UI for managing a techanim setup
+
+TODO
+Preset creation and sharing
+Context menu for nodes
+Maybe a Dialogue window for manual cache location
+Auto T-pose
+Auto T-pose for alembic
+
+Attributes:
+    CONFIG (dict): A config from either module or env var
+    DIR_PATH (str): filepath to this file
+    DISPLAY_NODE_INT (int): dict key for information in the UI
+    HOWTO_FILEPATH_DICT (str): filepath to howto gifs
+    LONG_NAME_INT (int): dict key for information in the UI
+    NODE_TYPE_INT (int): dict key for information in the UI
+    NULL_SETUP_SELCT_TEXT (str): Generic text for selecting setups
+    VIEW_LIST_ITEM_MSG (str): template for tooltips
+    WINDOW_TITLE (str): name of tool
+"""
+
 # Standard
 from __future__ import print_function
 from __future__ import unicode_literals
