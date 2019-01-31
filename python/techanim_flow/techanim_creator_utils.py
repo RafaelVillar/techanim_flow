@@ -1,18 +1,4 @@
 # -*- coding: utf-8 -*-
-"""Utils for creating a techanim setup. Deriving most major variables from
-a config file.
-
-Attributes:
-    CONFIG (dict): Pulled from either default or environment variable
-    CONFIG_ATTR (str): attr to help find techanim setups
-    DEFAULT_SETUP_OPTIONS (dict): default list of options for wrap, I thought
-    this would grow to be more useful when I started, consider removing.
-    LOCK_ATTRS (list): list of defaults attrs to lock and hide
-    RENDER_INPUT_KEY (str): keys for a config dict
-    RENDER_OUTPUT_KEY (str): keys for a config dict
-    RENDER_SIM_KEY (str): keys for a config dict
-    RIGID_KEY (str): keys for a config dict
-"""
 
 # Standard
 from __future__ import division

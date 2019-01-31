@@ -1,14 +1,4 @@
 # -*- coding: utf-8 -*-
-"""UI for creating a Techanim setup. This the flexibility in these tools comes
-from the config. The "setup" is very specific, but the naming of things is not.
-
-Attributes:
-    CONFIG (dict): either default or from env variable
-    DIR_PATH (str): parent path
-    HOWTO_FILEPATH_DICT (dict): filename: filepath of images to display in
-        the ui
-    WINDOW_TITLE (str): Name of the UI
-"""
 # Standard
 from __future__ import division
 from __future__ import generators

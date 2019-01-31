@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-"""generic UI tools to be used by the creator/manager
-"""
 # Standard
 from __future__ import division
 from __future__ import generators
