@@ -33,9 +33,13 @@ from functools import wraps
 
 import maya.cmds as cmds
 
-from PySide2 import QtWidgets, QtCore, QtGui
+try:
+    from Qt import QtWidgets, QtGui, QtCore
+except Exception:
+    from PySide2 import QtWidgets, QtGui, QtCore
 
 from techanim_flow import ui_utils
+from techanim_flow import preset_share_ui
 from techanim_flow import techanim_creator_utils
 from techanim_flow import techanim_manager_utils
 
@@ -64,6 +68,8 @@ NULL_SETUP_SELCT_TEXT = "Select TechAnim Setup"
 
 for _key, _path in HOWTO_FILEPATH_DICT.iteritems():
     HOWTO_FILEPATH_DICT[_key] = os.path.join(DIR_PATH, os.path.normpath(_path))
+
+os.environ["PRESET_SHARE_BASE_DIR"] = CONFIG["PRESET_SHARE_BASE_DIR"]
 
 
 def show(hide_menu=False, *args):
@@ -379,8 +385,8 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         layers_info = setup_node.get_layer_nodes_info(setup_node.sim_layers)
         for layer_name in setup_node.sim_layers:
             nodes = layers_info[layer_name]
-            layer_layout, layer_view = self.layer_view_widget(layer_name,
-                                                              nodes)
+            layer_layout, layer_view = self.create_layerview_widget(layer_name,
+                                                                    nodes)
             if techanim_creator_utils.removeNS(layer_name) == setup_node.setup_config["sim_layer"]:
                 self.sim_view_widget = layer_view
                 msg = "{} is your nCloth layer. Other layers are for clean-up."
@@ -539,7 +545,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
 
         return layout
 
-    def layer_view_widget(self, layer_name, nodes):
+    def create_layerview_widget(self, layer_name, nodes):
         """Create the view layer widget representing the layers in the setup.
         Populated with the children nodes
 
@@ -556,6 +562,9 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         layer_view.setObjectName(layer_name)
         layer_view.currentItemChanged.connect(self.select_node)
         layer_view.itemClicked.connect(self.select_node)
+        # layer_view.itemPressed.connect(self.select_node)
+        layer_view.itemActivated.connect(self.select_node)
+        layer_view.installEventFilter(self)
         nodes.sort()
 
         for node in nodes:
@@ -614,6 +623,64 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
                                           self.total_end_frame)
         self.active_setup.set_start_nuclei_frame(self.start_frame)
         self.color_sim_view()
+
+    def eventFilter(self, QObject, QEvent):
+        """Catch the WhatsThis even on any widget and display its howto layer
+
+        Args:
+            QObject (QtCore.QObject): standard qobject
+            QEvent (QtCore.QEvent): standard event that gets added
+
+        Returns:
+            Bool: original super call
+        """
+        if QEvent.type() == QtCore.QEvent.Type.ContextMenu:
+            self.create_context_menu(QObject, QEvent)
+            return True
+
+        return False
+
+    def launch_preset_share(self):
+        reload(preset_share_ui)
+        preset_share_ui.show()
+
+    def create_context_menu(self, listview, event):
+        """Create menu at point requested
+
+        Args:
+            QPos (QPoint): location of the request, that
+            needs to get mapped to the window
+        """
+
+        self.pubMenu = QtWidgets.QMenu()
+        parentPosition = listview.viewport().mapToGlobal(QtCore.QPoint(0, 0))
+        menu_item_01 = self.pubMenu.addAction("Select Shapes")
+        menu_item_01.triggered.connect(self.select_shapes)
+
+        menu_item_02 = self.pubMenu.addAction("Open Preset Share")
+        menu_item_02.triggered.connect(self.launch_preset_share)
+
+        self.pubMenu.move(parentPosition + event.pos())
+        self.pubMenu.show()
+
+    def get_all_selected_items(self):
+        """Get all QListWidgetItems from all the layer windows that
+        are selected
+
+        Returns:
+            list: [QListWidgetItem, QListWidgetItem ]
+        """
+        selectedItems = []
+        for layer_layout, layer_view in self.techanim_view_widgets:
+            selectedItems.extend(layer_view.selectedItems())
+        return selectedItems
+
+    def select_shapes(self):
+        shapes_to_select = []
+        for item in self.get_all_selected_items():
+            shapes = cmds.listRelatives(item.data(LONG_NAME_INT), shapes=True)
+            shapes_to_select.extend(shapes)
+        cmds.select(shapes_to_select)
 
     def create_ncahe_widget(self):
         """nCache settings widget
