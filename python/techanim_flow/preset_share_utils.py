@@ -36,6 +36,7 @@ import maya.cmds as cmds
 # =============================================================================
 ALL_USER_DIR_NAME = "users"
 FILE_NAMING = "{nodetype}_{description}_v{version}.{ext}"
+# see if there is a better way to do this
 NAMEING_REGEX = "(?P<nodetype>[a-zA-Z]+)_(?P<description>[a-zA-Z]+)_v(?P<ver>\d+)(?P<ext>\.[a-zA-Z0-9]+)$"
 PRESET_DIR_NAME = "preset_share"
 PRESET_EXT = "preset"

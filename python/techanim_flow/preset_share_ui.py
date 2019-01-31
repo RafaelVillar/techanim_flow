@@ -15,17 +15,17 @@ Attributes:
     WINDOW_TITLE (str): Title of the UI
 """
 
-__author__ = "Rafael Villar"
-__license__ = "MIT"
-__version__ = "1.0.0"
-__email__ = "rav@ravrigs.com"
-__credits__ = ["Bae Jaechul", "www.studioanima.co.jp/en/"]
-
 from __future__ import division
 from __future__ import generators
 from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import unicode_literals
+
+__author__ = "Rafael Villar"
+__license__ = "MIT"
+__version__ = "1.0.0"
+__email__ = "rav@ravrigs.com"
+__credits__ = ["Bae Jaechul", "www.studioanima.co.jp/en/"]
 
 import os
 import getpass
