@@ -420,7 +420,7 @@ class TechAnim_Setup(object):
                 if not cmds.isConnected(src_plug, dest_plug):
                     cmds.connectAttr(src_plug, dest_plug, f=True)
 
-    def show_nodes(self, nodes, isolate=False, select=False):
+    def show_nodes(self, nodes, select_second=None, isolate=False, select=False):
         """Displays the desired nodes and any parent nodes that may be hidden
 
         Args:
@@ -435,6 +435,8 @@ class TechAnim_Setup(object):
 
         if select or isolate:
             cmds.select(nodes)
+            if select_second:
+                cmds.select(select_second, add=True)
 
         if isolate:
             isolated_panel = cmds.paneLayout('viewPanes', q=True, pane1=True)

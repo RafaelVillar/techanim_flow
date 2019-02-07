@@ -68,7 +68,7 @@ def create_chunk(func):
                           openChunk=True)
             return func(*args, **kwargs)
         except Exception as e:
-            print(e)
+            raise e
 
         finally:
             cmds.undoInfo(chunkName=chunk_name, closeChunk=True)
@@ -225,8 +225,8 @@ def create_rigid_nodes(rigid_nodes, nucleus_node):
     # configured differently
     sim_index = CONFIG["grouping_order"].index(CONFIG["sim_layer"])
     # only duplicating up to the disired sim layer
-    for layer in CONFIG["grouping_order"][:sim_index + 1]:
-        for rNode in rigid_nodes:
+    for rNode in rigid_nodes:
+        for layer in CONFIG["grouping_order"][:sim_index + 1]:
             rigid_node = "{}_{}".format(rNode, layer)
             if layer == CONFIG["sim_layer"]:
                 rigid_node = "{}_{}{}{}".format(rNode,
@@ -306,14 +306,16 @@ def populate_connection_layer(techanim_info,
         input_driveR_node = "{}{}".format(driverR_node, suffix)
         input_driveR_node = cmds.duplicate(driverR_node,
                                            n=removeNS(input_driveR_node),
-                                           un=False)[0]
+                                           un=False,
+                                           ic=False)[0]
         cmds.parent(input_driveR_node, groupA)
         locknHide(input_driveR_node)
 
         input_driveN_node = "{}{}".format(driveN_node, suffix)
         input_driveN_node = cmds.duplicate(driveN_node,
                                            n=removeNS(input_driveN_node),
-                                           un=False)[0]
+                                           un=False,
+                                           ic=False)[0]
         cmds.parent(input_driveN_node, groupB)
         locknHide(input_driveN_node)
         if wrap:
@@ -335,7 +337,10 @@ def populate_layer(techanim_info, group, suffix):
     """
     for render_node, sim_node in techanim_info.iteritems():
         node = "{}{}".format(sim_node, suffix)
-        node = cmds.duplicate(sim_node, n=removeNS(node), un=False)[0]
+        node = cmds.duplicate(sim_node,
+                              n=removeNS(node),
+                              un=False,
+                              ic=False)[0]
         cmds.delete(node, ch=True)
         cmds.parent(node, group)
         cmds.setAttr("{}.v".format(node), 0)
@@ -469,6 +474,7 @@ def create_setup(techanim_info, setup_options=None):
 
     create_output_layer(techanim_info[RENDER_SIM_KEY], **setup_options)
     create_layer_connections(techanim_info[RENDER_SIM_KEY])
+    print(rigid_nodes, "RIGID")
     create_ncloth_setup(rigid_nodes)
 
     input_info = {}

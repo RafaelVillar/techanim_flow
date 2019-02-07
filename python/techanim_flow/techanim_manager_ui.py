@@ -104,7 +104,8 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.setWindowTitle(WINDOW_TITLE)
         self.setObjectName(self.__class__.__name__)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
-        self.setWindowFlags(self.windowFlags())
+        minflag = QtCore.Qt.WindowMinimizeButtonHint
+        self.setWindowFlags(self.windowFlags() | minflag)
 
         self.mainLayout = QtWidgets.QVBoxLayout()
         self.setLayout(self.mainLayout)
@@ -200,6 +201,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.active_setup.cache_input_layer(self.total_start_frame,
                                             self.total_end_frame)
         self.color_input_cache_button()
+        cmds.currentTime(self.total_start_frame)
 
     @check_for_active
     def _delete_cache_input_layer(self):
@@ -253,18 +255,22 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         cached_nodes = self.active_setup.is_sim_layer_cached()
         for index in range(self.sim_view_widget.count()):
             item = self.sim_view_widget.item(index)
-            short_name = techanim_creator_utils.removeNS(item.data(LONG_NAME_INT))
+            long_name = item.data(LONG_NAME_INT)
+            short_name = techanim_creator_utils.removeNS(long_name)
             if item.data(LONG_NAME_INT) in cached_nodes:
-                italic = True
+                # italic = True
                 text = "{} (Cached)".format(short_name)
             else:
-                italic = False
+                # italic = False
                 text = short_name
 
-            font = item.font()
-            font.setItalic(italic)
-            item.setFont(font)
-            item.setText(text)
+            for shapes in cmds.listRelatives(long_name, shapes=True) or []:
+                if cmds.attributeQuery("isDynamic", node=shapes, ex=True):
+                    font = item.font()
+                    val = cmds.getAttr("{}.isDynamic".format(shapes))
+                    font.setItalic(not val)
+                    item.setFont(font)
+                    item.setText(text)
 
     def color_input_cache_button(self):
         """If the input layer is cached, color it green, grey if not.
@@ -394,7 +400,8 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
                 self.sim_view_widget.setToolTip(msg)
 
             # color views
-            bg_color = self.views_widget.palette().color(self.views_widget.backgroundRole())
+            bg_role = self.views_widget.backgroundRole()
+            bg_color = self.views_widget.palette().color(bg_role)
             sBox_palette = layer_view.palette()
             sBox_palette.setColor(QtGui.QPalette.Base, bg_color.darker(110))
             layer_view.setPalette(sBox_palette)
@@ -485,6 +492,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.preroll_sb.setValue(CONFIG["preroll"])
         self.preroll_sb.setButtonSymbols(no_buttons)
         self.preroll_sb.setToolTip("How many preroll frames before action.")
+        # self.preroll_sb.valueChanged.connect(self._set_start_frame)
 
         self.start_frame_sb = QtWidgets.QSpinBox()
         self.start_frame_sb.setPrefix("Start Frame: ")
@@ -493,6 +501,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.start_frame_sb.setValue(cmds.playbackOptions(min=True, q=True))
         self.start_frame_sb.setButtonSymbols(no_buttons)
         self.start_frame_sb.setToolTip("When the action or shot starts.")
+        # self.start_frame_sb.valueChanged.connect(self._set_start_frame)
 
         self.end_frame_sb = QtWidgets.QSpinBox()
         self.end_frame_sb.setPrefix("End Frame: ")
@@ -545,7 +554,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
 
         return layout
 
-    def create_layerview_widget(self, layer_name, nodes):
+    def create_layerview_widget(self, layer_name, nodes, isolate_btn=False):
         """Create the view layer widget representing the layers in the setup.
         Populated with the children nodes
 
@@ -560,10 +569,11 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         layer_label = QtWidgets.QLabel(techanim_creator_utils.removeNS(layer_name).capitalize())
         layer_view = QtWidgets.QListWidget()
         layer_view.setObjectName(layer_name)
-        layer_view.currentItemChanged.connect(self.select_node)
-        layer_view.itemClicked.connect(self.select_node)
-        # layer_view.itemPressed.connect(self.select_node)
-        layer_view.itemActivated.connect(self.select_node)
+        layer_view.currentItemChanged.connect(self.mutually_exclusive_selection)
+        layer_view.itemClicked.connect(self.mutually_exclusive_selection)
+        layer_view.itemPressed.connect(self.mutually_exclusive_selection)
+        layer_view.itemActivated.connect(self.mutually_exclusive_selection)
+        layer_view.itemSelectionChanged.connect(self.__select_node)
         layer_view.installEventFilter(self)
         nodes.sort()
 
@@ -598,6 +608,10 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
             to_cache.append(item.data(LONG_NAME_INT))
         self.active_setup.delete_sim_cache(to_cache)
         self.color_sim_view()
+
+    def _set_start_frame(self, changed=None):
+        if self.active_setup:
+            self.active_setup.set_start_nuclei_frame(self.total_start_frame)
 
     @check_for_active
     def create_ncache(self):
@@ -644,6 +658,18 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         reload(preset_share_ui)
         preset_share_ui.show()
 
+    def toggle_dynamic_selected(self):
+        selectedItems = self.get_all_selected_items()
+        for item in selectedItems:
+            long_name = item.data(LONG_NAME_INT)
+            for shapes in cmds.listRelatives(long_name, shapes=True) or []:
+                print(shapes, cmds.attributeQuery("isDynamic", node=shapes, ex=True))
+                if cmds.attributeQuery("isDynamic", node=shapes, ex=True):
+                    plug = "{}.isDynamic".format(shapes)
+                    value = cmds.getAttr(plug)
+                    cmds.setAttr(plug, not value)
+        self.color_sim_view()
+
     def create_context_menu(self, listview, event):
         """Create menu at point requested
 
@@ -657,8 +683,14 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         menu_item_01 = self.pubMenu.addAction("Select Shapes")
         menu_item_01.triggered.connect(self.select_shapes)
 
-        menu_item_02 = self.pubMenu.addAction("Open Preset Share")
-        menu_item_02.triggered.connect(self.launch_preset_share)
+        menu_item_02 = self.pubMenu.addAction("Toggle Dynamic")
+        menu_item_02.triggered.connect(self.toggle_dynamic_selected)
+
+        menu_item_03 = self.pubMenu.addAction("Open Preset Share")
+        self.pubMenu.insertSeparator(menu_item_03)
+        menu_item_03.triggered.connect(self.launch_preset_share)
+        style = QtWidgets.QStyle
+        menu_item_03.setIcon(self.style().standardIcon(getattr(style, "SP_TitleBarMaxButton")))
 
         self.pubMenu.move(parentPosition + event.pos())
         self.pubMenu.show()
@@ -702,25 +734,58 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         layout.setAlignment(QtCore.Qt.AlignCenter)
         return group_widget
 
-    def select_node(self, selection_item):
+    # def select_node(self, selection_item):
+    #     """Select the node listed on the listwidget
+
+    #     Args:
+    #         selection_item (QListwidgetItem): selected
+    #     """
+    #     current_view = selection_item.listWidget()
+    #     to_sel_second = []
+    #     to_sel = []
+    #     for item in current_view.selectedItems():
+    #         to_sel_second.append(item.data(LONG_NAME_INT))
+    #         display_node = item.data(DISPLAY_NODE_INT)
+    #         if display_node:
+    #             to_sel.append(display_node)
+
+    #     self.active_setup.show_nodes(to_sel + to_sel_second,
+    #                                  select_second=to_sel_second,
+    #                                  select=True)
+
+    def __select_node(self):
+        items = self.get_all_selected_items()
+        if not items:
+            cmds.select(cl=True)
+            return
+        self.select_node(items)
+
+    def mutually_exclusive_selection(self, selection_item):
+        current_view = selection_item.listWidget()
+        for layer_layout, layer_view in self.techanim_view_widgets:
+            if current_view == layer_view:
+                continue
+            layer_view.clearSelection()
+
+    def select_node(self, selected):
         """Select the node listed on the listwidget
 
         Args:
             selection_item (QListwidgetItem): selected
         """
-        current_view = selection_item.listWidget()
+        # current_view = selection_item.listWidget()
+        to_sel_second = []
         to_sel = []
-        for item in current_view.selectedItems():
-            to_sel.append(item.data(LONG_NAME_INT))
+        for item in selected:
+            to_sel_second.append(item.data(LONG_NAME_INT))
             display_node = item.data(DISPLAY_NODE_INT)
             if display_node:
                 to_sel.append(display_node)
 
-        self.active_setup.show_nodes(to_sel, select=True)
-        for layer_layout, layer_view in self.techanim_view_widgets:
-            if current_view == layer_view:
-                continue
-            layer_view.clearSelection()
+        self.active_setup.show_nodes(to_sel + to_sel_second,
+                                     select_second=to_sel_second,
+                                     select=True)
+
 
     # =========================================================================
     # overrides

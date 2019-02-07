@@ -208,7 +208,8 @@ class PresetShareUI(QtWidgets.QDialog):
         self.setWindowTitle(WINDOW_TITLE)
         self.setObjectName(self.__class__.__name__)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
-        self.setWindowFlags(self.windowFlags())
+        minflag = QtCore.Qt.WindowMinimizeButtonHint
+        self.setWindowFlags(self.windowFlags() | minflag)
         self.setMinimumWidth(350)
         self.preset_share_dir = preset_share_utils.get_base_dir()
         self.mainLayout = QtWidgets.QVBoxLayout()
@@ -239,8 +240,8 @@ class PresetShareUI(QtWidgets.QDialog):
         self.file_view.hideColumn(1)
         self.file_view.hideColumn(2)
         self.file_view.clicked.connect(self.preset_selected)
-        # self.file_view.collapsed.connect(self._set_gathered_collapse_state)
-        self.file_view.header().setSectionResizeMode(QtWidgets.QHeaderView.ResizeToContents)
+        self.file_view.header().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
+        # self.file_view.header().setStretchLastSection(True)
         self.file_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.file_view.customContextMenuRequested.connect(self.create_context_menu)
 
@@ -568,8 +569,12 @@ class PresetShareUI(QtWidgets.QDialog):
         Args:
             closeEvent (QEvent):
         """
-        print("Cleaning up...")
-        self.file_manager.deleteLater()
+        # print("Cleaning up...")
+        try:
+            self.file_manager.deleteLater()
+        except Exception:
+            self.deleteLater()
+
         try:
             super(PresetShareUI, self).closeEvent(closeEvent)
         except TypeError:

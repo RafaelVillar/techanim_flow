@@ -380,7 +380,6 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         self.setWindowTitle(WINDOW_TITLE)
         self.setObjectName(self.__class__.__name__)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
-        self.setWindowFlags(self.windowFlags())
 
         self.mainLayout = QtWidgets.QVBoxLayout()
         self.setLayout(self.mainLayout)
