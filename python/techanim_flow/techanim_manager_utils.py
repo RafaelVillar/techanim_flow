@@ -9,6 +9,7 @@ from __future__ import unicode_literals
 import os
 import ast
 import copy
+import pprint
 import tempfile
 from functools import wraps
 
@@ -137,6 +138,7 @@ class TechAnim_Setup(object):
         self.setup_config = {}
         self.nodes_to_hide = []
         self.suffixes_to_hide = []
+        self.potentionally_faulty_connections = {}
         self.set_config()
 
         if ":" in self.root_node:
@@ -180,6 +182,13 @@ class TechAnim_Setup(object):
         # do shit
         self.target_namespace = namespace.strip(":")
 
+    @property
+    def print_faulty_connections(self):
+        """Summary
+        """
+        print("The following failed connections could be intentional.")
+        pprint.pprint(self.potentionally_faulty_connections)
+
     def _wrap_ns(self, node):
         """convenience function, wrap any node belonging to this setup in the
         namespace retrieved when initialized
@@ -196,7 +205,7 @@ class TechAnim_Setup(object):
     def is_setup_referenced(self):
         return cmds.referenceQuery(self.root_node, inr=True)
 
-    def flatten_setup(self):
+    def import_setup(self):
         if self.is_setup_referenced:
             ref_node = cmds.referenceQuery(self.root_node, rfn=True)
             ref_file = cmds.referenceQuery(ref_node, f=True)
@@ -399,7 +408,7 @@ class TechAnim_Setup(object):
         """We are connecting the techanim to the rig on every initialization,
         check into this later to see if this is best practice or not.
         """
-        self.flatten_setup()
+        self.import_setup()
         input_info = self.techanim_info[techanim_creator_utils.RENDER_INPUT_KEY]
         self._create_input_layer_connections(input_info)
         rigid_info = self.techanim_info[techanim_creator_utils.RIGID_KEY]
@@ -418,7 +427,14 @@ class TechAnim_Setup(object):
                 dest_plug = "{}.inMesh".format(render_node)
                 # test if already connected so we do not get the warnings
                 if not cmds.isConnected(src_plug, dest_plug):
-                    cmds.connectAttr(src_plug, dest_plug, f=True)
+                    try:
+                        cmds.connectAttr(src_plug, dest_plug, f=True)
+                    except Exception as e:
+                        plug_str = "{} >> {}".format(src_plug, dest_plug)
+                        msg = str(e)
+                        self.potentionally_faulty_connections[plug_str] = msg
+        if self.potentionally_faulty_connections:
+            self.print_faulty_connections()
 
     def show_nodes(self, nodes, select_second=None, isolate=False, select=False):
         """Displays the desired nodes and any parent nodes that may be hidden

@@ -72,6 +72,9 @@ for _key, _path in HOWTO_FILEPATH_DICT.iteritems():
 os.environ["PRESET_SHARE_BASE_DIR"] = CONFIG["PRESET_SHARE_BASE_DIR"]
 
 
+SUPPORTED_TOGGLE_ATTRS = ["isDynamic", "enable"]
+
+
 def show(hide_menu=False, *args):
     """To launch the ui and not get the same instance
 
@@ -264,13 +267,16 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
                 # italic = False
                 text = short_name
 
-            for shapes in cmds.listRelatives(long_name, shapes=True) or []:
-                if cmds.attributeQuery("isDynamic", node=shapes, ex=True):
-                    font = item.font()
-                    val = cmds.getAttr("{}.isDynamic".format(shapes))
-                    font.setItalic(not val)
-                    item.setFont(font)
-                    item.setText(text)
+            for shapes in cmds.listRelatives(long_name, shapes=True) or [long_name]:
+                attrs = [attr for attr in SUPPORTED_TOGGLE_ATTRS
+                         if cmds.attributeQuery(attr, node=shapes, ex=True)]
+                for attr in attrs:
+                    if cmds.attributeQuery(attr, node=shapes, ex=True):
+                        font = item.font()
+                        val = cmds.getAttr("{}.{}".format(shapes, attr))
+                        font.setItalic(not val)
+                        item.setFont(font)
+                        item.setText(text)
 
     def color_input_cache_button(self):
         """If the input layer is cached, color it green, grey if not.
@@ -575,6 +581,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         layer_view.itemActivated.connect(self.mutually_exclusive_selection)
         layer_view.itemSelectionChanged.connect(self.__select_node)
         layer_view.installEventFilter(self)
+        layer_view.setCursor(QtCore.Qt.WhatsThisCursor)
         nodes.sort()
 
         for node in nodes:
@@ -655,19 +662,30 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         return False
 
     def launch_preset_share(self):
+        """Launch UI that accompanies this one.
+        """
         reload(preset_share_ui)
         preset_share_ui.show()
 
     def toggle_dynamic_selected(self):
+        """Toggle the enable attr to the opposite. If True make False and vice
+        versa
+        """
         selectedItems = self.get_all_selected_items()
         for item in selectedItems:
             long_name = item.data(LONG_NAME_INT)
-            for shapes in cmds.listRelatives(long_name, shapes=True) or []:
-                print(shapes, cmds.attributeQuery("isDynamic", node=shapes, ex=True))
-                if cmds.attributeQuery("isDynamic", node=shapes, ex=True):
-                    plug = "{}.isDynamic".format(shapes)
-                    value = cmds.getAttr(plug)
-                    cmds.setAttr(plug, not value)
+            # A little of a round about way to toggle all supported attrs
+            for shapes in cmds.listRelatives(long_name, shapes=True) or [long_name]:
+                attrs = [attr for attr in SUPPORTED_TOGGLE_ATTRS
+                         if cmds.attributeQuery(attr, node=shapes, ex=True)]
+                for attr in attrs:
+                    if cmds.attributeQuery(attr, node=shapes, ex=True):
+                        plug = "{}.{}".format(shapes, attr)
+                        try:
+                            value = cmds.getAttr(plug)
+                            cmds.setAttr(plug, not value)
+                        except Exception:
+                            pass
         self.color_sim_view()
 
     def create_context_menu(self, listview, event):
