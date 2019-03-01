@@ -6,6 +6,8 @@ With simming, you need to prepare the geometry, simulate it, and then clean it u
 into 3 layers. Pre, Sim, and Post. Each layer connected to the next. 
 
 The entire TechAnim toolset is configurable, an example config below.
+
+`
 {
     "#": "suffix for the nodes being created for the setup",
     "input_suffix": "_input",
@@ -66,4 +68,35 @@ The entire TechAnim toolset is configurable, an example config below.
         "easter_egg": "images/muffin.gif"
     }
  
-}
+}`
+
+
+
+## Usuage
+
+## Techanim Creator
+
+`from techanim_flow import techanim_creator_ui; 
+ techanim_creator_ui.show()`
+
+
+
+
+## Techanim Manager
+
+`from techanim_flow import techanim_manager_ui; 
+ techanim_manager_ui.show()`
+
+## Preset Share
+
+`from techanim_flow import preset_share_ui; 
+ preset_share_ui.show()`
+
+
+## Changelog
+
+***0.1.2***
+
+    - Initial release.
+    - toggle dynamic attr for nucleus and cloth shapes.
+
