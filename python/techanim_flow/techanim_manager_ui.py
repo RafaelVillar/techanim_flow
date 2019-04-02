@@ -61,13 +61,17 @@ NodeType: {nodeType}
 childTypes: {childTypes}
 """
 
-DIR_PATH = os.path.dirname(__file__)
 WINDOW_TITLE = "TechAnim Setup Manager"
+
+# This is for the images folder, but this may not be needed
+DIR_PATH = os.path.dirname(__file__)
+TECH_PYTHON_PATH = os.path.abspath(os.path.join(DIR_PATH, os.pardir))
+ROOT_MODULE_PATH = os.path.abspath(os.path.join(TECH_PYTHON_PATH, os.pardir))
 HOWTO_FILEPATH_DICT = CONFIG.get("HOWTO_FILEPATH_DICT", {})
-NULL_SETUP_SELCT_TEXT = "Select TechAnim Setup"
+
 
 for _key, _path in HOWTO_FILEPATH_DICT.iteritems():
-    HOWTO_FILEPATH_DICT[_key] = os.path.join(DIR_PATH, os.path.normpath(_path))
+    HOWTO_FILEPATH_DICT[_key] = os.path.join(ROOT_MODULE_PATH, os.path.normpath(_path))
 
 os.environ["PRESET_SHARE_BASE_DIR"] = CONFIG["PRESET_SHARE_BASE_DIR"]
 
