@@ -15,7 +15,7 @@ Attributes:
     HOWTO_FILEPATH_DICT (str): filepath to howto gifs
     LONG_NAME_INT (int): dict key for information in the UI
     NODE_TYPE_INT (int): dict key for information in the UI
-    NULL_SETUP_SELCT_TEXT (str): Generic text for selecting setups
+    NULL_SETUP_SELECT_TEXT (str): Generic text for selecting setups
     VIEW_LIST_ITEM_MSG (str): template for tooltips
     WINDOW_TITLE (str): name of tool
 """
@@ -61,13 +61,19 @@ NodeType: {nodeType}
 childTypes: {childTypes}
 """
 
-DIR_PATH = os.path.dirname(__file__)
 WINDOW_TITLE = "TechAnim Setup Manager"
+
+NULL_SETUP_SELECT_TEXT = "Select Setup"
+
+# This is for the images folder, but this may not be needed
+DIR_PATH = os.path.dirname(__file__)
+TECH_PYTHON_PATH = os.path.abspath(os.path.join(DIR_PATH, os.pardir))
+ROOT_MODULE_PATH = os.path.abspath(os.path.join(TECH_PYTHON_PATH, os.pardir))
 HOWTO_FILEPATH_DICT = CONFIG.get("HOWTO_FILEPATH_DICT", {})
-NULL_SETUP_SELCT_TEXT = "Select TechAnim Setup"
+
 
 for _key, _path in HOWTO_FILEPATH_DICT.iteritems():
-    HOWTO_FILEPATH_DICT[_key] = os.path.join(DIR_PATH, os.path.normpath(_path))
+    HOWTO_FILEPATH_DICT[_key] = os.path.join(ROOT_MODULE_PATH, os.path.normpath(_path))
 
 os.environ["PRESET_SHARE_BASE_DIR"] = CONFIG["PRESET_SHARE_BASE_DIR"]
 
@@ -299,7 +305,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         """
         self.setup_select_cb.blockSignals(True)
         self.setup_select_cb.clear()
-        self.setup_select_cb.insertItem(0, NULL_SETUP_SELCT_TEXT)
+        self.setup_select_cb.insertItem(0, NULL_SETUP_SELECT_TEXT)
         [self.setup_select_cb.addItem(str(x))
             for x in self.techanim_setup_nodes]
         self.setup_select_cb.blockSignals(False)
@@ -316,7 +322,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
             that require a setup
         """
         setup_name = self.setup_select_cb.currentText()
-        if setup_name == NULL_SETUP_SELCT_TEXT:
+        if setup_name == NULL_SETUP_SELECT_TEXT:
             self.active_setup = None
             self.delete_layers_widgets()
             return

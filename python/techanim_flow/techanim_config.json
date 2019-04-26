@@ -53,10 +53,10 @@
     "cache_dir": "S:/ANIMA/projects/MST3/tmp/techanim",
     "PRESET_SHARE_BASE_DIR": "S:/ANIMA/projects/MST3/user/rafael/preset_share",
     "HOWTO_FILEPATH_DICT": {
-        "RenderGeoListView": "images/make_association.gif",
-        "SimGeoListView": "images/make_association.gif",
-        "AddRenderGeoButton": "images/add_render_geo.gif",
-        "easter_egg": "images/muffin.gif"
+        "RenderGeoListView": "images/gifs/make_association.gif",
+        "SimGeoListView": "images/gifs/make_association.gif",
+        "AddRenderGeoButton": "images/gifs/add_render_geo.gif",
+        "easter_egg": "images/gifs/muffin.gif"
     }
 
 }
