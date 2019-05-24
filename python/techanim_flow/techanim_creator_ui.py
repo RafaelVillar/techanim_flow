@@ -717,12 +717,12 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         return False
 
 
-if __name__ == '__main__':
-    os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
-    qapp = QtWidgets.QApplication(sys.argv)
-    import maya.standalone
-    maya.standalone.initialize("Python")
-    qapp.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
-    qapp.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
-    tac_UI = show()
-    sys.exit(qapp.exec_())
+# if __name__ == '__main__':
+#     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+#     qapp = QtWidgets.QApplication(sys.argv)
+#     import maya.standalone
+#     maya.standalone.initialize("Python")
+#     qapp.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
+#     qapp.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
+#     tac_UI = show()
+#     sys.exit(qapp.exec_())

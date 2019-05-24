@@ -50,8 +50,8 @@
     "grouping_order": ["input", "pre", "sim", "post", "output"],
     "cache_dir_suffix": "_techanim",
     "#": "if empty, it will use pythons tmpdir for cache_dir storing.",
-    "cache_dir": "S:/ANIMA/projects/MST3/tmp/techanim",
-    "PRESET_SHARE_BASE_DIR": "S:/ANIMA/projects/MST3/user/rafael/preset_share",
+    "cache_dir": "S:/ANIMA/projects/ATC/tmp/techanim",
+    "PRESET_SHARE_BASE_DIR": "S:/ANIMA/projects/ATC/user/rafael/preset_share",
     "HOWTO_FILEPATH_DICT": {
         "RenderGeoListView": "images/gifs/make_association.gif",
         "SimGeoListView": "images/gifs/make_association.gif",

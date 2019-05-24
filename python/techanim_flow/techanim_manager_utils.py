@@ -11,6 +11,8 @@ import ast
 import copy
 import pprint
 import tempfile
+import platform
+import subprocess
 from functools import wraps
 
 import maya.cmds as cmds
@@ -26,6 +28,7 @@ reload(techanim_creator_utils)
 CONFIG = techanim_creator_utils.CONFIG
 # This allows the setup(s) to choose only one cache dir per maya session
 CACHE_DIR_ENV = "TECHANIM_CACHE_SESSION_DIR"
+CACHE_DIR_NAME = "techanim"
 
 # =============================================================================
 # general functions
@@ -99,7 +102,7 @@ def get_added_dicts(a, b):
     return tmp
 
 
-def get_cache_dir(root_dir, suffix):
+def get_temp_dir(root_dir, prefix="", suffix=""):
     """Use pythons built in tempfile to safely and quickly get a dir to save to
 
     Args:
@@ -109,8 +112,24 @@ def get_cache_dir(root_dir, suffix):
     Returns:
         str: dirpath
     """
-    tmp_dir = tempfile.mkdtemp(suffix=suffix, dir=os.path.abspath(root_dir))
-    return tmp_dir
+    temp_dir = tempfile.mkdtemp(prefix=prefix,
+                                suffix=suffix,
+                                dir=os.path.abspath(root_dir))
+    return temp_dir
+
+
+def open_folder(path):
+    """https://stackoverflow.com/questions/6631299/python-opening-a-folder-in-explorer-nautilus-mac-thingie
+
+    Args:
+        path (TYPE): Description
+    """
+    if platform.system() == "Windows":
+        os.startfile(path)
+    elif platform.system() == "Darwin":
+        subprocess.Popen(["open", path])
+    else:
+        subprocess.Popen(["xdg-open", path])
 
 
 class TechAnim_Setup(object):
@@ -140,6 +159,7 @@ class TechAnim_Setup(object):
         self.suffixes_to_hide = []
         self.potentionally_faulty_connections = {}
         self.set_config()
+        self.get_cache_dir()
 
         if ":" in self.root_node:
             self.techanim_ns = "{}:".format(self.root_node.partition(":")[0])
@@ -211,22 +231,42 @@ class TechAnim_Setup(object):
             ref_file = cmds.referenceQuery(ref_node, f=True)
             cmds.file(ref_file, ir=True)
 
-    @property
-    def get_cache_dir(self):
+    def get_cache_dir(self, prefix="", suffix=""):
         """get the cache dir that will be used during the creation of any new
         caches
 
         Returns:
             str: should be good on any os
         """
-        cache_dir = os.environ.get(CACHE_DIR_ENV)
-        if cache_dir:
-            return cache_dir
-        else:
-            cache_dir = get_cache_dir(CONFIG["cache_dir"],
-                                      CONFIG["cache_dir_suffix"])
-            os.environ[CACHE_DIR_ENV] = cache_dir
+        existing_cache = self.setup_config.get("cache_dir")
+        if existing_cache and os.path.exists(existing_cache):
+            return existing_cache
+
+        cache_dir = os.environ.get(CACHE_DIR_ENV, CONFIG["cache_dir"])
+        try:
+            os.makedirs(cache_dir)
+        except Exception:
+            pass
+        potential_path = os.path.join(cache_dir, CACHE_DIR_NAME)
+        # if the provided cache dir does not end in techanim and one does not
+        # exist, create one
+        if (os.path.basename(cache_dir) != CACHE_DIR_NAME and not
+                os.path.exists(potential_path)):
+            os.makedirs(potential_path)
+            cache_dir = potential_path
+
+        cache_dir = get_temp_dir(cache_dir,
+                                 prefix="",
+                                 suffix=CONFIG["cache_dir_suffix"])
+
+        self.setup_config["cache_dir"] = cache_dir
+        self.set_setup_info(self.setup_config)
         return os.path.abspath(cache_dir)
+
+    def set_setup_info(self, data):
+        techanim_creator_utils.set_info(self.root_node,
+                                        techanim_creator_utils.CONFIG_ATTR,
+                                        data)
 
     def __toggle_nuclei(func):
         """
@@ -512,7 +552,7 @@ class TechAnim_Setup(object):
         cache_arg_info = {
             "start_frame": start_frame,
             "end_frame": end_frame,
-            "cache_dir": cache_dir or self.get_cache_dir.replace("\\", "/"),
+            "cache_dir": cache_dir or self.get_cache_dir().replace("\\", "/"),
             "world_space": 1
         }
 
@@ -533,7 +573,7 @@ class TechAnim_Setup(object):
         cached_nodes = self.is_node_cached(nodes)
         if cached_nodes:
             cmds.select(cached_nodes)
-            mel.eval('deleteCacheFile 2 { "delete", "" } ;')
+            mel.eval('deleteCacheFile 2 { "keep", "" } ;')
 
     def delete_input_layer_cache(self):
         """delete input layer on any nodes
@@ -547,6 +587,7 @@ class TechAnim_Setup(object):
             cmds.select(cached_nodes)
             try:
                 mel.eval("performDeleteGeometryCache 0;")
+                # mel.eval("performDeleteGeometryCache 0;")
             except Exception:
                 pass
 
@@ -634,7 +675,7 @@ class TechAnim_Setup(object):
         cache_arg_info = {
             "start_frame": start_frame,
             "end_frame": end_frame,
-            "cache_dir": cache_dir or self.get_cache_dir.replace("\\", "/")
+            "cache_dir": cache_dir or self.get_cache_dir().replace("\\", "/")
         }
         self.delete_sim_cache(nodes)
         cache_cmd = cache_cmd.format(**cache_arg_info)

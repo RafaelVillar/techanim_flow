@@ -297,9 +297,18 @@ def get_base_dir():
     dir_path = os.environ.get(PRESET_SHARE_ENV_NAME)
     if not dir_path:
         raise IOError("No directory set in environ for preset share!")
+    try:
+        os.makedirs(dir_path)
+    except Exception:
+        pass
+
+    potential_path = os.path.join(dir_path, PRESET_DIR_NAME)
+    if (os.path.basename(dir_path) != PRESET_DIR_NAME and not
+            os.path.exists(potential_path)):
+        os.makedirs(potential_path)
+        dir_path = potential_path
     root_dir = os.path.abspath(dir_path)
-    if os.path.basename(root_dir) != PRESET_DIR_NAME:
-        root_dir = os.path.join(root_dir, PRESET_DIR_NAME)
+
     return root_dir
 
 

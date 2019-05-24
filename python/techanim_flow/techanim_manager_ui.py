@@ -72,6 +72,8 @@ ROOT_MODULE_PATH = os.path.abspath(os.path.join(TECH_PYTHON_PATH, os.pardir))
 HOWTO_FILEPATH_DICT = CONFIG.get("HOWTO_FILEPATH_DICT", {})
 
 for _key, _path in HOWTO_FILEPATH_DICT.iteritems():
+    HOWTO_FILEPATH_DICT[_key] = os.path.join(ROOT_MODULE_PATH,
+                                             os.path.normpath(_path))
 
 os.environ["PRESET_SHARE_BASE_DIR"] = CONFIG["PRESET_SHARE_BASE_DIR"]
 
@@ -192,6 +194,8 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         """
         try:
             self.cache_input_layer_btn.clicked.disconnect()
+            self.preroll_sb.valueChanged.disconnect()
+            self.start_frame_sb.valueChanged.disconnect()
         except RuntimeError:
             pass
         self.cache_input_layer_btn.clicked.connect(self._cache_input_layer)
@@ -199,7 +203,10 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.setup_select_cb.currentIndexChanged.connect(self.setup_selection_changed)
         self.create_ncache_btn.clicked.connect(self.create_ncache)
         self.delete_ncache_btn.clicked.connect(self.delete_ncache)
+        self.open_ncache_dir_btn.clicked.connect(self.open_cache_dir)
         self.refresh_btn.clicked.connect(self.total_refresh)
+        self.start_frame_sb.valueChanged.connect(self._set_start_frame)
+        self.preroll_sb.valueChanged.connect(self._set_start_frame)
 
     @check_for_active
     def _cache_input_layer(self):
@@ -288,7 +295,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         text = "Input Layer is NOT Cached"
         color = self.grey_color.darker(250)
 
-        if self.active_setup.is_input_layer_cached():
+        if self.active_setup and self.active_setup.is_input_layer_cached():
             text = "Input Layer is Cached"
             color = self.green_color
 
@@ -323,6 +330,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         if setup_name == NULL_SETUP_SELECT_TEXT:
             self.active_setup = None
             self.delete_layers_widgets()
+            self.color_input_cache_button()
             return
         for setup_node in self.techanim_setup_nodes:
             if setup_node.root_node == setup_name:
@@ -620,6 +628,11 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.active_setup.delete_sim_cache(to_cache)
         self.color_sim_view()
 
+    @check_for_active
+    def open_cache_dir(self):
+        path = self.active_setup.get_cache_dir()
+        techanim_manager_utils.open_folder(path)
+
     def _set_start_frame(self, changed=None):
         if self.active_setup:
             self.active_setup.set_start_nuclei_frame(self.total_start_frame)
@@ -747,12 +760,18 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         group_widget.setLayout(layout)
         self.create_ncache_btn = QtWidgets.QPushButton("Create nCache")
         self.delete_ncache_btn = QtWidgets.QPushButton("Delete nCache")
+        self.open_ncache_dir_btn = QtWidgets.QPushButton("Open Cache Dir")
+        style = QtWidgets.QStyle
+        self.open_ncache_dir_btn.setIcon(self.style().standardIcon(getattr(style, "SP_TitleBarMaxButton")))
         layout.addWidget(self.create_ncache_btn)
         layout.addWidget(self.delete_ncache_btn)
+        layout.addWidget(self.open_ncache_dir_btn)
         self.create_ncache_btn.setMinimumWidth(150)
         self.create_ncache_btn.setMaximumWidth(250)
         self.delete_ncache_btn.setMinimumWidth(150)
         self.delete_ncache_btn.setMaximumWidth(250)
+        self.open_ncache_dir_btn.setMinimumWidth(150)
+        self.open_ncache_dir_btn.setMaximumWidth(250)
         layout.setAlignment(QtCore.Qt.AlignCenter)
         return group_widget
 
@@ -779,6 +798,8 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         items = self.get_all_selected_items()
         if not items:
             cmds.select(cl=True)
+            self.active_setup.show_nodes([],
+                                         select=False)
             return
         self.select_node(items)
 

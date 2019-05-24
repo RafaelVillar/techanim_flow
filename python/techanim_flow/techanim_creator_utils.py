@@ -23,6 +23,7 @@ from __future__ import unicode_literals
 
 # standard
 import copy
+import traceback
 from functools import wraps
 
 # dcc
@@ -68,6 +69,7 @@ def create_chunk(func):
                           openChunk=True)
             return func(*args, **kwargs)
         except Exception as e:
+            traceback.print_exc()
             raise e
 
         finally:
