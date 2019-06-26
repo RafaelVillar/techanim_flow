@@ -492,4 +492,6 @@ def create_setup(techanim_info, setup_options=None):
 
     set_info(CONFIG["techanim_root"], CONFIG_ATTR, CONFIG)
 
+    cmds.select(cl=True)
     cmds.select(CONFIG["techanim_root"])
+    mel.eval('createAndAssignShader lambert "";')
