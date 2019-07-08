@@ -39,6 +39,9 @@ import maya.cmds as cmds
 
 from techanim_flow import ui_utils
 from techanim_flow import preset_share_utils
+from techanim_flow import techanim_creator_utils
+
+reload(techanim_creator_utils)
 
 # =============================================================================
 # constants
@@ -52,6 +55,8 @@ User: {user}
 origin scene: {origin_scene}
 
 """
+CONFIG = techanim_creator_utils.CONFIG
+os.environ["PRESET_SHARE_BASE_DIR"] = CONFIG["PRESET_SHARE_BASE_DIR"]
 
 
 def show():

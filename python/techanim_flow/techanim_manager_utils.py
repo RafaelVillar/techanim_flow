@@ -557,8 +557,17 @@ class TechAnim_Setup(object):
         }
 
         cache_cmd = cache_cmd.format(**cache_arg_info)
-        input_nodes = self.get_layer_nodes_info([self.input_layer])
-        cmds.select(input_nodes.values()[0])
+        input_shapes = cmds.listRelatives(self.input_layer, ad=True, type=["mesh"])
+        shapes_to_cache = []
+        for shape in input_shapes:
+            if cmds.listConnections("{}.inMesh".format(shape)):
+                shapes_to_cache.append(shape)
+        cmds.select(cl=True)
+        print("Caching: {}".format(shapes_to_cache))
+        # Wow, it will not performa a geometry cache if the geo is hidden
+        # fun bug, hours lost.
+        cmds.showHidden(shapes_to_cache, above=True)
+        cmds.select(shapes_to_cache)
         mel.eval(cache_cmd)
 
     def delete_sim_cache(self, nodes):
