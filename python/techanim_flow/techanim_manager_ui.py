@@ -207,6 +207,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.refresh_btn.clicked.connect(self.total_refresh)
         self.start_frame_sb.valueChanged.connect(self._set_start_frame)
         self.preroll_sb.valueChanged.connect(self._set_start_frame)
+        self.set_frame_ncache_btn.clicked.connect(self._set_frame_range)
 
     @check_for_active
     def _cache_input_layer(self):
@@ -253,6 +254,8 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
             self.get_techanim_setups()
             self.populate_setup_list()
         self.setup_selection_changed()
+        self.start_frame_sb.setValue(self._set_frame_range())
+        self.end_frame_sb.setValue(cmds.playbackOptions(q=True, maxTime=True))
         if not self.active_setup:
             return
         self.set_sim_view_info()
@@ -510,16 +513,14 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.preroll_sb.setValue(CONFIG["preroll"])
         self.preroll_sb.setButtonSymbols(no_buttons)
         self.preroll_sb.setToolTip("How many preroll frames before action.")
-        # self.preroll_sb.valueChanged.connect(self._set_start_frame)
 
         self.start_frame_sb = QtWidgets.QSpinBox()
         self.start_frame_sb.setPrefix("Start Frame: ")
         self.start_frame_sb.setMaximum(100000)
         self.start_frame_sb.setMinimum(-100000)
-        self.start_frame_sb.setValue(cmds.playbackOptions(min=True, q=True))
+        self.start_frame_sb.setValue(CONFIG["preroll"] + cmds.playbackOptions(min=True, q=True))
         self.start_frame_sb.setButtonSymbols(no_buttons)
         self.start_frame_sb.setToolTip("When the action or shot starts.")
-        # self.start_frame_sb.valueChanged.connect(self._set_start_frame)
 
         self.end_frame_sb = QtWidgets.QSpinBox()
         self.end_frame_sb.setPrefix("End Frame: ")
@@ -636,6 +637,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
     def _set_start_frame(self, changed=None):
         if self.active_setup:
             self.active_setup.set_start_nuclei_frame(self.total_start_frame)
+            cmds.playbackOptions(e=True, minTime=self.total_start_frame)
 
     @check_for_active
     def create_ncache(self):
@@ -661,6 +663,15 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
                                           self.total_end_frame)
         self.active_setup.set_start_nuclei_frame(self.start_frame)
         self.color_sim_view()
+
+    def _set_frame_range(self):
+        start_frame = cmds.playbackOptions(q=True, minTime=True)
+        end_frame = cmds.playbackOptions(q=True, maxTime=True)
+        if self.active_setup:
+            self.active_setup.set_start_nuclei_frame(start_frame)
+            cmds.currentTime(start_frame)
+            print("Setting start frame to {}".format(start_frame))
+        return start_frame
 
     def eventFilter(self, QObject, QEvent):
         """Catch the WhatsThis even on any widget and display its howto layer
@@ -760,16 +771,21 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         group_widget.setLayout(layout)
         self.create_ncache_btn = QtWidgets.QPushButton("Create nCache")
         self.delete_ncache_btn = QtWidgets.QPushButton("Delete nCache")
+        self.set_frame_ncache_btn = QtWidgets.QPushButton("Set Nucleus Start Frame")
+        self.set_frame_ncache_btn.setToolTip("Set start frame from frame range.")
         self.open_ncache_dir_btn = QtWidgets.QPushButton("Open Cache Dir")
         style = QtWidgets.QStyle
         self.open_ncache_dir_btn.setIcon(self.style().standardIcon(getattr(style, "SP_TitleBarMaxButton")))
         layout.addWidget(self.create_ncache_btn)
         layout.addWidget(self.delete_ncache_btn)
+        layout.addWidget(self.set_frame_ncache_btn)
         layout.addWidget(self.open_ncache_dir_btn)
         self.create_ncache_btn.setMinimumWidth(150)
         self.create_ncache_btn.setMaximumWidth(250)
         self.delete_ncache_btn.setMinimumWidth(150)
         self.delete_ncache_btn.setMaximumWidth(250)
+        self.set_frame_ncache_btn.setMinimumWidth(150)
+        self.set_frame_ncache_btn.setMaximumWidth(250)
         self.open_ncache_dir_btn.setMinimumWidth(150)
         self.open_ncache_dir_btn.setMaximumWidth(250)
         layout.setAlignment(QtCore.Qt.AlignCenter)

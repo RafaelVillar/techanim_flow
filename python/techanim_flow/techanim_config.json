@@ -20,7 +20,7 @@
     "nucleus_name": "techanim_nucleus",
     "config_attr": "techanim_config",
     "nodes_attr": "techanim_nodes",
-    "preroll": 25,
+    "preroll": 0,
     "postroll": 25,
     "nodes_to_hide": ["geo_pre", "geo_post", "geo_sim"],
     "suffixes_to_hide": ["_sim", "_DISPLAY"],
