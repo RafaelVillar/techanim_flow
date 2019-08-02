@@ -203,6 +203,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.setup_select_cb.currentIndexChanged.connect(self.setup_selection_changed)
         self.create_ncache_btn.clicked.connect(self.create_ncache)
         self.delete_ncache_btn.clicked.connect(self.delete_ncache)
+        self.update_ncache_btn.clicked.connect(self.update_nCache_location)
         self.open_ncache_dir_btn.clicked.connect(self.open_cache_dir)
         self.refresh_btn.clicked.connect(self.total_refresh)
         self.start_frame_sb.valueChanged.connect(self._set_start_frame)
@@ -630,6 +631,13 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.color_sim_view()
 
     @check_for_active
+    def update_nCache_location(self):
+        """Update the nCache dir on the current setup. This will not move
+        existing caches. New paths will be created in this location.
+        """
+        self.active_setup.update_cache_dir(CONFIG["cache_dir"])
+
+    @check_for_active
     def open_cache_dir(self):
         path = self.active_setup.get_cache_dir()
         techanim_manager_utils.open_folder(path)
@@ -766,24 +774,38 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         Returns:
             QGroupWidget: settings widget
         """
-        group_widget = QtWidgets.QGroupBox("nCache settings")
-        layout = QtWidgets.QVBoxLayout()
+        group_widget = QtWidgets.QGroupBox("Nucleus settings")
+        layout = QtWidgets.QHBoxLayout()
         group_widget.setLayout(layout)
+        # cache buttons -------------------------------------------------------
+        cache_layout = QtWidgets.QGridLayout()
         self.create_ncache_btn = QtWidgets.QPushButton("Create nCache")
         self.delete_ncache_btn = QtWidgets.QPushButton("Delete nCache")
+        self.update_ncache_btn = QtWidgets.QPushButton("Update nCache Location")
         self.set_frame_ncache_btn = QtWidgets.QPushButton("Set Nucleus Start Frame")
         self.set_frame_ncache_btn.setToolTip("Set start frame from frame range.")
         self.open_ncache_dir_btn = QtWidgets.QPushButton("Open Cache Dir")
         style = QtWidgets.QStyle
         self.open_ncache_dir_btn.setIcon(self.style().standardIcon(getattr(style, "SP_TitleBarMaxButton")))
-        layout.addWidget(self.create_ncache_btn)
-        layout.addWidget(self.delete_ncache_btn)
-        layout.addWidget(self.set_frame_ncache_btn)
-        layout.addWidget(self.open_ncache_dir_btn)
+        cache_layout.addWidget(self.create_ncache_btn, 0, 0)
+        cache_layout.addWidget(self.delete_ncache_btn, 0, 1)
+        cache_layout.addWidget(self.update_ncache_btn, 1, 0)
+        cache_layout.addWidget(self.open_ncache_dir_btn, 1, 1)
+
+        # nucleus buttons -----------------------------------------------------
+        nucleus_layout = QtWidgets.QVBoxLayout()
+        nucleus_layout.addWidget(self.set_frame_ncache_btn)
+
+        # assemble layout orientation -----------------------------------------
+        layout.addLayout(cache_layout)
+        layout.addLayout(nucleus_layout)
+
         self.create_ncache_btn.setMinimumWidth(150)
         self.create_ncache_btn.setMaximumWidth(250)
         self.delete_ncache_btn.setMinimumWidth(150)
         self.delete_ncache_btn.setMaximumWidth(250)
+        self.update_ncache_btn.setMinimumWidth(150)
+        self.update_ncache_btn.setMaximumWidth(250)
         self.set_frame_ncache_btn.setMinimumWidth(150)
         self.set_frame_ncache_btn.setMaximumWidth(250)
         self.open_ncache_dir_btn.setMinimumWidth(150)

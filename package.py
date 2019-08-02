@@ -30,7 +30,7 @@ _environ = {
     "PYTHONPATH": [
         "{root}/python"
     ],
-    "TECHANIM_ENV_CONFIG": "{root}/python/techanim_flow/techanim_config.json",
+    # "TECHANIM_ENV_CONFIG": "{root}/python/techanim_flow/techanim_config.json",
     "TECHANIM_ROOT": "{root}"
 }
 

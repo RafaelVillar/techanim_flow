@@ -136,7 +136,8 @@ def set_info(node, attr, data):
         data (dict): of info to store
     """
     try:
-        cmds.addAttr(node, ln=attr, dt="string")
+        if not cmds.objExists("{}.{}".format(node, attr)):
+            cmds.addAttr(node, ln=attr, dt="string")
     except Exception:
         pass
     cmds.setAttr("{}.{}".format(node, attr), str(data), type="string")

@@ -27,7 +27,6 @@ reload(techanim_creator_utils)
 # convenience, it was annoying to type over again
 CONFIG = techanim_creator_utils.CONFIG
 # This allows the setup(s) to choose only one cache dir per maya session
-CACHE_DIR_ENV = "TECHANIM_CACHE_SESSION_DIR"
 CACHE_DIR_NAME = "techanim"
 
 # =============================================================================
@@ -118,6 +117,30 @@ def get_temp_dir(root_dir, prefix="", suffix=""):
     return temp_dir
 
 
+def ensure_unique_cache_dir(cache_dir, suffix=""):
+    parent_dir = os.path.basename(os.path.abspath(os.path.join(cache_dir, os.pardir)))
+    dir_name = os.path.basename(cache_dir)
+    if dir_name == CACHE_DIR_NAME:
+        # create the tmp folder and set on config
+        cache_dir = get_temp_dir(cache_dir,
+                                 suffix=suffix)
+    elif dir_name.endswith("_techanim") and parent_dir == CACHE_DIR_NAME:
+        pass
+    else:
+        # root dir from config create techanim cache root
+        potential_path = os.path.join(cache_dir, CACHE_DIR_NAME)
+        # if the provided cache dir does not end in techanim and one does not
+        # exist, create one
+        if (os.path.basename(cache_dir) != CACHE_DIR_NAME and not
+                os.path.exists(potential_path)):
+            os.makedirs(potential_path)
+            cache_dir = potential_path
+            cache_dir = get_temp_dir(cache_dir,
+                                     suffix=suffix)
+
+    return os.path.abspath(cache_dir)
+
+
 def open_folder(path):
     """https://stackoverflow.com/questions/6631299/python-opening-a-folder-in-explorer-nautilus-mac-thingie
 
@@ -159,7 +182,6 @@ class TechAnim_Setup(object):
         self.suffixes_to_hide = []
         self.potentionally_faulty_connections = {}
         self.set_config()
-        self.get_cache_dir()
 
         if ":" in self.root_node:
             self.techanim_ns = "{}:".format(self.root_node.partition(":")[0])
@@ -238,38 +260,50 @@ class TechAnim_Setup(object):
         Returns:
             str: should be good on any os
         """
-        existing_cache = self.setup_config.get("cache_dir")
-        if existing_cache and os.path.exists(existing_cache):
-            return existing_cache
+        cache_dir = self.setup_config.get("cache_dir")
+        suffix = self.setup_config["cache_dir_suffix"]
+        unique_cache_dir = ensure_unique_cache_dir(cache_dir, suffix=suffix)
+        if unique_cache_dir != cache_dir:
+            self.update_cache_dir(cache_dir)
+        return cache_dir
 
-        cache_dir = os.environ.get(CACHE_DIR_ENV, CONFIG["cache_dir"])
-        try:
-            os.makedirs(cache_dir)
-        except Exception:
-            pass
-        potential_path = os.path.join(cache_dir, CACHE_DIR_NAME)
-        # if the provided cache dir does not end in techanim and one does not
-        # exist, create one
-        if (os.path.basename(cache_dir) != CACHE_DIR_NAME and not
-                os.path.exists(potential_path)):
-            os.makedirs(potential_path)
-            cache_dir = potential_path
+    def set_setup_config_info(self, data):
+        """Overwrite the entirety of the current setup config with the
+        provided data.
 
-        cache_dir = get_temp_dir(cache_dir,
-                                 prefix="",
-                                 suffix=CONFIG["cache_dir_suffix"])
-
-        self.setup_config["cache_dir"] = cache_dir
-        self.set_setup_info(self.setup_config)
-        return os.path.abspath(cache_dir)
-
-    def set_setup_info(self, data):
+        Args:
+            data (dict): new config information
+        """
         techanim_creator_utils.set_info(self.root_node,
                                         techanim_creator_utils.CONFIG_ATTR,
                                         data)
 
-    def __toggle_nuclei(func):
+    def update_config_key(self, key, data):
+        """Update an entry in the current config. Existing or not.
+
+        Args:
+            key (str): name of the key, entry
+            data (str, bool, list): new information that will be cast as str
         """
+        self.setup_config[key] = data
+        techanim_creator_utils.set_info(self.root_node,
+                                        techanim_creator_utils.CONFIG_ATTR,
+                                        self.setup_config)
+
+    def update_cache_dir(self, new_dir):
+        suffix = self.setup_config["cache_dir_suffix"]
+        cache_dir = ensure_unique_cache_dir(new_dir, suffix=suffix)
+        self.update_config_key("cache_dir", cache_dir)
+        msg = "{} >> {}".format(self.setup_config["cache_dir"],
+                                cache_dir)
+        print("Cache directory updated!")
+        print(msg)
+
+    def __toggle_nuclei(func):
+        """Disable the nuclui in the setup for the current fucntion
+
+        Args:
+            func (function): function to disable nukes during run
         """
         @wraps(func)
         def run_disabled_nuclei(self, *args, **kwargs):
@@ -309,6 +343,9 @@ class TechAnim_Setup(object):
             # THIS NEEDS TO BE REVISTED. I am adding shit from file
             stored_config = ast.literal_eval(str_config)
             self.setup_config = get_added_dicts(stored_config, CONFIG)
+            techanim_creator_utils.set_info(self.root_node,
+                                            techanim_creator_utils.CONFIG_ATTR,
+                                            self.setup_config)
         except Exception:
             cmds.warning("Could not retrieve CONFIG stored on setup!")
             self.setup_config = CONFIG
