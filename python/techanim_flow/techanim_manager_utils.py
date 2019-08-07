@@ -34,6 +34,17 @@ CACHE_DIR_NAME = "techanim"
 # =============================================================================
 
 
+def get_render_nodes(root_node, namespaces=False):
+    render_info = techanim_creator_utils.get_info(root_node,
+                                                  CONFIG["nodes_attr"])
+    if namespaces:
+        render_nodes = render_info.keys()
+    else:
+        print(render_info)
+        render_nodes = [techanim_creator_utils.removeNS(x) for x in render_info["render_sim"].keys()]
+    return render_nodes
+
+
 def get_all_setups_roots():
     """Get all root nodes of techanim setups using an attr from config
 

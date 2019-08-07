@@ -22,6 +22,7 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 
 # standard
+import ast
 import copy
 import traceback
 from functools import wraps
@@ -138,9 +139,15 @@ def set_info(node, attr, data):
     try:
         if not cmds.objExists("{}.{}".format(node, attr)):
             cmds.addAttr(node, ln=attr, dt="string")
-    except Exception:
-        pass
-    cmds.setAttr("{}.{}".format(node, attr), str(data), type="string")
+    except Exception as e:
+        print(e)
+    plug = "{}.{}".format(node, attr)
+    cmds.setAttr(plug, str(data), type="string")
+
+
+def get_info(root_node, attr):
+    setup_config = cmds.getAttr("{}.{}".format(root_node, attr))
+    return ast.literal_eval(setup_config)
 
 
 def removeNS(name):
@@ -394,7 +401,6 @@ def create_layer_connections(techanim_info):
                 break
             dest_node = "{}_{}".format(removeNS(sim_node),
                                        CONFIG["grouping_order"][next_val])
-            # print(dest_node)
             cmds.connectAttr("{}.outMesh".format(source_node),
                              "{}.inMesh".format(dest_node),
                              force=True)
@@ -437,7 +443,6 @@ def create_ncloth_setup(rigid_nodes):
 
         next_layer_mesh = sim_mesh.replace(CONFIG["sim_layer"],
                                            CONFIG["post_layer"])
-        # print(next_layer_mesh)
         cmds.connectAttr("{}.outMesh".format(cloth_shape),
                          "{}.inMesh".format(next_layer_mesh),
                          f=True)
@@ -477,7 +482,6 @@ def create_setup(techanim_info, setup_options=None):
 
     create_output_layer(techanim_info[RENDER_SIM_KEY], **setup_options)
     create_layer_connections(techanim_info[RENDER_SIM_KEY])
-    print(rigid_nodes, "RIGID")
     create_ncloth_setup(rigid_nodes)
 
     input_info = {}
