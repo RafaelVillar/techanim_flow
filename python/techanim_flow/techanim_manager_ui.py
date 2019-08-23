@@ -240,6 +240,11 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         """Convenience function to avoid partials
         """
         self.refresh(collected_setups=True)
+        if len(self.techanim_setup_nodes) == 1:
+            index = self.setup_select_cb.findData(str(self.techanim_setup_nodes[0]), 0)
+            if index < 0:
+                index = 0
+            self.setup_select_cb.setCurrentIndex(index)
 
     def refresh(self, collected_setups=False):
         """Refresh the UI and research for techanim setup nodes
@@ -343,6 +348,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.color_input_cache_button()
         self.set_sim_view_info()
         self.color_sim_view()
+        self.update_nCache_location()
 
     def views_layout(self):
         """create the views layout
@@ -409,6 +415,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
                                                     parent=self)
             results = ns_prompt.exec_()
             setup_node.set_target_namespace(results[0])
+            self.update_nCache_location()
         setup_node.refresh_info()
         layers_info = setup_node.get_layer_nodes_info(setup_node.sim_layers)
         for layer_name in setup_node.sim_layers:
@@ -589,10 +596,10 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         layer_label = QtWidgets.QLabel(techanim_creator_utils.removeNS(layer_name).capitalize())
         layer_view = QtWidgets.QListWidget()
         layer_view.setObjectName(layer_name)
-        layer_view.currentItemChanged.connect(self.mutually_exclusive_selection)
-        layer_view.itemClicked.connect(self.mutually_exclusive_selection)
-        layer_view.itemPressed.connect(self.mutually_exclusive_selection)
-        layer_view.itemActivated.connect(self.mutually_exclusive_selection)
+        # layer_view.currentItemChanged.connect(self.mutually_exclusive_selection)
+        # layer_view.itemClicked.connect(self.mutually_exclusive_selection)
+        # layer_view.itemPressed.connect(self.mutually_exclusive_selection)
+        # layer_view.itemActivated.connect(self.mutually_exclusive_selection)
         layer_view.itemSelectionChanged.connect(self.__select_node)
         layer_view.installEventFilter(self)
         layer_view.setCursor(QtCore.Qt.WhatsThisCursor)
@@ -703,7 +710,10 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         reload(preset_share_ui)
         preset_share_ui.show()
 
-    def toggle_dynamic_selected(self):
+    def __enable_dynamic(self):
+        self.set_dynamix_state(enable=True)
+
+    def set_dynamix_state(self, enable=False):
         """Toggle the enable attr to the opposite. If True make False and vice
         versa
         """
@@ -718,8 +728,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
                     if cmds.attributeQuery(attr, node=shapes, ex=True):
                         plug = "{}.{}".format(shapes, attr)
                         try:
-                            value = cmds.getAttr(plug)
-                            cmds.setAttr(plug, not value)
+                            cmds.setAttr(plug, enable)
                         except Exception:
                             pass
         self.color_sim_view()
@@ -737,14 +746,17 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         menu_item_01 = self.pubMenu.addAction("Select Shapes")
         menu_item_01.triggered.connect(self.select_shapes)
 
-        menu_item_02 = self.pubMenu.addAction("Toggle Dynamic")
-        menu_item_02.triggered.connect(self.toggle_dynamic_selected)
+        menu_item_02 = self.pubMenu.addAction("Enable Dynamic")
+        menu_item_02.triggered.connect(self.__enable_dynamic)
 
-        menu_item_03 = self.pubMenu.addAction("Open Preset Share")
-        self.pubMenu.insertSeparator(menu_item_03)
-        menu_item_03.triggered.connect(self.launch_preset_share)
+        menu_item_03 = self.pubMenu.addAction("Disable Dynamic")
+        menu_item_03.triggered.connect(self.set_dynamix_state)
+
+        menu_item_04 = self.pubMenu.addAction("Open Preset Share")
+        self.pubMenu.insertSeparator(menu_item_04)
+        menu_item_04.triggered.connect(self.launch_preset_share)
         style = QtWidgets.QStyle
-        menu_item_03.setIcon(self.style().standardIcon(getattr(style, "SP_TitleBarMaxButton")))
+        menu_item_04.setIcon(self.style().standardIcon(getattr(style, "SP_TitleBarMaxButton")))
 
         self.pubMenu.move(parentPosition + event.pos())
         self.pubMenu.show()
@@ -758,13 +770,18 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         """
         selectedItems = []
         for layer_layout, layer_view in self.techanim_view_widgets:
-            selectedItems.extend(layer_view.selectedItems())
+            items = layer_view.selectedItems()
+            selectedItems.extend(items)
         return selectedItems
 
     def select_shapes(self):
         shapes_to_select = []
+        long_names_to_collect = []
         for item in self.get_all_selected_items():
-            shapes = cmds.listRelatives(item.data(LONG_NAME_INT), shapes=True)
+            long_name = item.data(LONG_NAME_INT)
+            long_names_to_collect.append(long_name)
+        for long_name in long_names_to_collect:
+            shapes = cmds.listRelatives(long_name, shapes=True)
             shapes_to_select.extend(shapes)
         cmds.select(shapes_to_select)
 
@@ -833,6 +850,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
     #                                  select=True)
 
     def __select_node(self):
+        QtWidgets.QApplication.processEvents()
         items = self.get_all_selected_items()
         if not items:
             cmds.select(cl=True)

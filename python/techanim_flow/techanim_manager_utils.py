@@ -152,6 +152,23 @@ def ensure_unique_cache_dir(cache_dir, suffix=""):
     return os.path.abspath(cache_dir)
 
 
+def get_cachefile_nodes(nodes):
+    shape_nodes = []
+    for node in nodes:
+        nodeType = cmds.nodeType(node)
+        if nodeType == "transform":
+            children = cmds.listRelatives(node, shapes=True, ni=True) or []
+            shape_nodes.extend(children)
+        elif nodeType in ["mesh", "nCloth"]:
+            shape_nodes.append(node)
+
+    all_history = []
+    for x in shape_nodes:
+        all_history.extend(cmds.listHistory(x, pdo=True) or [])
+
+    return list(set(cmds.ls(all_history, type="cacheFile")))
+
+
 def open_folder(path):
     """https://stackoverflow.com/questions/6631299/python-opening-a-folder-in-explorer-nautilus-mac-thingie
 
@@ -186,6 +203,9 @@ class TechAnim_Setup(object):
 
     def __init__(self, root_node, target_namespace=None):
         super(TechAnim_Setup, self).__init__()
+        # defaults ------------------------------------------------------------
+        self.cache_multithreading = True
+
         self.root_node = root_node
         self.techanim_info = {}
         self.setup_config = {}
@@ -310,6 +330,22 @@ class TechAnim_Setup(object):
         print("Cache directory updated!")
         print(msg)
 
+# =============================================================================
+# Decorators
+# =============================================================================
+
+    def enforce_cache_multithreading(func):
+        @wraps(func)
+        def check_multithread(self, *args, **kwargs):
+            try:
+                return func(self, *args, **kwargs)
+            except Exception as e:
+                print(e)
+            finally:
+                self.toggle_cache_multithreading(enable=self.cache_multithreading)
+
+        return check_multithread
+
     def __toggle_nuclei(func):
         """Disable the nuclui in the setup for the current fucntion
 
@@ -424,6 +460,30 @@ class TechAnim_Setup(object):
         """
         sim_layer = self._wrap_ns(self.setup_config["sim_layer"])
         return cmds.listRelatives(sim_layer, ad=True, type="nucleus") or []
+
+    def toggle_cache_multithreading(self, enable=True):
+        """get all the cache nodes that could potentially be in the setup and
+        toggle their multithreading to the desired state.
+
+        Args:
+            enable (bool, optional): true or false
+        """
+        sim_layers = [self._wrap_ns(self.setup_config["sim_layer"])]
+        sim_nodes = self.get_layer_nodes_info(sim_layers)
+        cached_sim_nodes = self.get_cached_nodes(sim_nodes.values()[0])
+
+        input_nodes = self.get_layer_nodes_info([self.input_layer])
+        cached_input_nodes = self.get_cached_nodes(input_nodes.values()[0])
+
+        found_cachefiles = get_cachefile_nodes(cached_input_nodes + cached_sim_nodes)
+        print((cached_input_nodes + cached_sim_nodes))
+        print(found_cachefiles)
+
+        for cache_node in found_cachefiles:
+            try:
+                cmds.setAttr("{}.multiThread".format(cache_node), enable)
+            except Exception as e:
+                print(e)
 
     def toggle_nuclei(self, nuclei=None, value=0):
         if not nuclei:
@@ -547,6 +607,7 @@ class TechAnim_Setup(object):
             cmds.isolateSelect(isolated_panel, state=True)
             cmds.isolateSelect(isolated_panel, aso=True)
 
+    @enforce_cache_multithreading
     @toggle_view
     @__toggle_nuclei
     def cache_input_layer(self, start_frame, end_frame, cache_dir=None):
@@ -627,7 +688,7 @@ class TechAnim_Setup(object):
         """
         cached_nodes = []
 
-        cached_nodes = self.is_node_cached(nodes)
+        cached_nodes = self.get_cached_nodes(nodes)
         if cached_nodes:
             cmds.select(cached_nodes)
             mel.eval('deleteCacheFile 2 { "keep", "" } ;')
@@ -639,7 +700,7 @@ class TechAnim_Setup(object):
         # performDeleteGeometryCache 0;
         # deleteCacheFile 3 { "delete", "", "geometry" };
         input_nodes = self.get_layer_nodes_info([self.input_layer])
-        cached_nodes = self.is_node_cached(input_nodes.values()[0])
+        cached_nodes = self.get_cached_nodes(input_nodes.values()[0])
         if cached_nodes:
             cmds.select(cached_nodes)
             try:
@@ -655,7 +716,7 @@ class TechAnim_Setup(object):
             list: of nodes with caches on them
         """
         input_nodes = self.get_layer_nodes_info([self.input_layer])
-        return self.is_node_cached(input_nodes.values()[0])
+        return self.get_cached_nodes(input_nodes.values()[0])
 
     def is_sim_layer_cached(self):
         """are there any nodes in the sim layer that have cache nodes on them
@@ -664,10 +725,10 @@ class TechAnim_Setup(object):
             list: of nodes with caches on them
         """
         layers = [self._wrap_ns(self.setup_config["sim_layer"])]
-        input_nodes = self.get_layer_nodes_info(layers)
-        return self.is_node_cached(input_nodes.values()[0])
+        sim_nodes = self.get_layer_nodes_info(layers)
+        return self.get_cached_nodes(sim_nodes.values()[0])
 
-    def is_node_cached(self, nodes):
+    def get_cached_nodes(self, nodes):
         """are the specific nodes supplied cached in anyway
 
         Args:
@@ -686,6 +747,7 @@ class TechAnim_Setup(object):
 
         return nodes_with_cache
 
+    @enforce_cache_multithreading
     @toggle_view
     def cache_sim_nodes(self, nodes, start_frame, end_frame, cache_dir=None):
         """More annoying mel shit, you cannot run a cache on a node

@@ -245,8 +245,9 @@ class PresetShareUI(QtWidgets.QDialog):
         self.file_view.hideColumn(1)
         self.file_view.hideColumn(2)
         self.file_view.clicked.connect(self.preset_selected)
-        self.file_view.header().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
+        # self.file_view.header().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
         # self.file_view.header().setStretchLastSection(True)
+        self.file_view.header().setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
         self.file_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.file_view.customContextMenuRequested.connect(self.create_context_menu)
 
