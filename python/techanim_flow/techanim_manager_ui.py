@@ -169,6 +169,16 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         """
         return self.end_frame_sb.value()
 
+    @property
+    def save_scene_post_cache(self):
+        """Does the user wish the scene to be saved at the end of the cache.
+        Sometimes the settings are high and require the user to "come back later"
+
+        Returns:
+            bool: Description
+        """
+        return self.save_post_checkb.isChecked()
+
     def check_for_active(func):
         """Convenience function to test if there is an active TechAnim_setup
         node.
@@ -215,7 +225,8 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         """Cache the input layer nodes. All of them.
         """
         self.active_setup.cache_input_layer(self.total_start_frame,
-                                            self.total_end_frame)
+                                            self.total_end_frame,
+                                            post_save=self.save_scene_post_cache)
         self.color_input_cache_button()
         cmds.currentTime(self.total_start_frame)
 
@@ -675,7 +686,8 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.active_setup.set_start_nuclei_frame(self.total_start_frame)
         self.active_setup.cache_sim_nodes(to_cache,
                                           self.total_start_frame,
-                                          self.total_end_frame)
+                                          self.total_end_frame,
+                                          post_save=self.save_scene_post_cache)
         self.active_setup.set_start_nuclei_frame(self.start_frame)
         self.color_sim_view()
 
@@ -792,30 +804,32 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
             QGroupWidget: settings widget
         """
         group_widget = QtWidgets.QGroupBox("Nucleus settings")
-        layout = QtWidgets.QHBoxLayout()
+        layout = QtWidgets.QVBoxLayout()
         group_widget.setLayout(layout)
         # cache buttons -------------------------------------------------------
         cache_layout = QtWidgets.QGridLayout()
         self.create_ncache_btn = QtWidgets.QPushButton("Create nCache")
         self.delete_ncache_btn = QtWidgets.QPushButton("Delete nCache")
         self.update_ncache_btn = QtWidgets.QPushButton("Update nCache Location")
+        self.open_ncache_dir_btn = QtWidgets.QPushButton("Open Cache Dir")
         self.set_frame_ncache_btn = QtWidgets.QPushButton("Set Nucleus Start Frame")
         self.set_frame_ncache_btn.setToolTip("Set start frame from frame range.")
-        self.open_ncache_dir_btn = QtWidgets.QPushButton("Open Cache Dir")
+        self.save_post_checkb = QtWidgets.QRadioButton("Save Scene Post Cache")
         style = QtWidgets.QStyle
         self.open_ncache_dir_btn.setIcon(self.style().standardIcon(getattr(style, "SP_TitleBarMaxButton")))
         cache_layout.addWidget(self.create_ncache_btn, 0, 0)
         cache_layout.addWidget(self.delete_ncache_btn, 0, 1)
-        cache_layout.addWidget(self.update_ncache_btn, 1, 0)
-        cache_layout.addWidget(self.open_ncache_dir_btn, 1, 1)
+        cache_layout.addWidget(self.save_post_checkb, 0, 2)
+        cache_layout.addWidget(self.update_ncache_btn, 2, 0)
+        cache_layout.addWidget(self.open_ncache_dir_btn, 2, 1)
 
         # nucleus buttons -----------------------------------------------------
         nucleus_layout = QtWidgets.QVBoxLayout()
         nucleus_layout.addWidget(self.set_frame_ncache_btn)
 
         # assemble layout orientation -----------------------------------------
-        layout.addLayout(cache_layout)
         layout.addLayout(nucleus_layout)
+        layout.addLayout(cache_layout)
 
         self.create_ncache_btn.setMinimumWidth(150)
         self.create_ncache_btn.setMaximumWidth(250)
@@ -824,10 +838,10 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.update_ncache_btn.setMinimumWidth(150)
         self.update_ncache_btn.setMaximumWidth(250)
         self.set_frame_ncache_btn.setMinimumWidth(150)
-        self.set_frame_ncache_btn.setMaximumWidth(250)
+        # self.set_frame_ncache_btn.setMaximumWidth(250)
         self.open_ncache_dir_btn.setMinimumWidth(150)
         self.open_ncache_dir_btn.setMaximumWidth(250)
-        layout.setAlignment(QtCore.Qt.AlignCenter)
+        # layout.setAlignment(QtCore.Qt.AlignCenter)
         return group_widget
 
     # def select_node(self, selection_item):

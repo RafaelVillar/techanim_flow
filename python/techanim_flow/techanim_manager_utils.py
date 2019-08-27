@@ -145,8 +145,7 @@ def ensure_unique_cache_dir(cache_dir, suffix=""):
         if (os.path.basename(cache_dir) != CACHE_DIR_NAME and not
                 os.path.exists(potential_path)):
             os.makedirs(potential_path)
-            cache_dir = potential_path
-            cache_dir = get_temp_dir(cache_dir,
+            cache_dir = get_temp_dir(potential_path,
                                      suffix=suffix)
 
     return os.path.abspath(cache_dir)
@@ -610,7 +609,11 @@ class TechAnim_Setup(object):
     @enforce_cache_multithreading
     @toggle_view
     @__toggle_nuclei
-    def cache_input_layer(self, start_frame, end_frame, cache_dir=None):
+    def cache_input_layer(self,
+                          start_frame,
+                          end_frame,
+                          cache_dir=None,
+                          post_save=False):
         """Using mel to create the caches on the input later nodes
 
         Args:
@@ -678,6 +681,9 @@ class TechAnim_Setup(object):
         cmds.showHidden(shapes_to_cache, above=True)
         cmds.select(shapes_to_cache)
         mel.eval(cache_cmd)
+        if post_save:
+            print("File save requested post cache!")
+            cmds.file(s=True, f=True)
 
     def delete_sim_cache(self, nodes):
         """There is an annoying mel bug that if you run delete using mel
@@ -749,7 +755,12 @@ class TechAnim_Setup(object):
 
     @enforce_cache_multithreading
     @toggle_view
-    def cache_sim_nodes(self, nodes, start_frame, end_frame, cache_dir=None):
+    def cache_sim_nodes(self,
+                        nodes,
+                        start_frame,
+                        end_frame,
+                        cache_dir=None,
+                        post_save=False):
         """More annoying mel shit, you cannot run a cache on a node
         that already has a cache on it without getting a UI pop up.
 
@@ -801,3 +812,6 @@ class TechAnim_Setup(object):
         cmds.select(nodes)
         print(cache_cmd)
         mel.eval(cache_cmd)
+        if post_save:
+            print("File save requested post cache!")
+            cmds.file(s=True, f=True)
