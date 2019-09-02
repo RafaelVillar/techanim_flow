@@ -170,7 +170,7 @@ def get_highest_version(desired_dir, nodetype, description, versionup=True):
     if not found_files:
         return version_str.format(version)
 
-    highest_ver = ast.literal_eval(split_name(found_files[-1])[2])
+    highest_ver = int(split_name(found_files[-1])[2])
     if versionup:
         highest_ver = highest_ver + 1
     return version_str.format(highest_ver)
