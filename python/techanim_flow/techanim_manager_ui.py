@@ -359,7 +359,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.color_input_cache_button()
         self.set_sim_view_info()
         self.color_sim_view()
-        self.update_nCache_location()
+        # self.update_nCache_location()
 
     def views_layout(self):
         """create the views layout

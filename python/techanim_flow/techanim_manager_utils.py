@@ -35,6 +35,22 @@ CACHE_DIR_NAME = "techanim"
 
 
 def get_render_nodes(root_node, namespaces=False):
+    ns = ""
+    if ":" in root_node:
+        ns = "{}:".format(root_node.split(":")[0])
+    str_config = cmds.getAttr("{}.{}".format(root_node,
+                                             CONFIG["config_attr"]))
+
+    stored_config = ast.literal_eval(str_config)
+    render_output = "{}{}".format(ns, stored_config["render_output"])
+    render_nodes = cmds.listRelatives(render_output)
+    render_nodes = [x.rpartition(stored_config["output_suffix"])[0] for x in render_nodes]
+    if not namespaces:
+        render_nodes = [techanim_creator_utils.removeNS(x) for x in render_nodes]
+    return render_nodes
+
+
+def get_render_nodes_legacy(root_node, namespaces=False):
     render_info = techanim_creator_utils.get_info(root_node,
                                                   CONFIG["nodes_attr"])
     if namespaces:
