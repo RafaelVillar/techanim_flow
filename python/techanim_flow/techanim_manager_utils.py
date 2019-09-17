@@ -34,31 +34,40 @@ CACHE_DIR_NAME = "techanim"
 # =============================================================================
 
 
-def get_render_nodes(root_node, namespaces=False):
+def get_namespace(node):
     ns = ""
-    if ":" in root_node:
-        ns = "{}:".format(root_node.split(":")[0])
+    if ":" in node:
+        ns = "{}:".format(node.split(":")[0])
+    return ns
+
+
+def get_stored_config(root_node):
     str_config = cmds.getAttr("{}.{}".format(root_node,
                                              CONFIG["config_attr"]))
 
     stored_config = ast.literal_eval(str_config)
+    return stored_config
+
+
+def get_output_render_nodes(root_node, namespaces=True):
+    ns = get_namespace(root_node)
+    stored_config = get_stored_config(root_node)
     render_output = "{}{}".format(ns, stored_config["render_output"])
     render_nodes = cmds.listRelatives(render_output)
-    render_nodes = [x.rpartition(stored_config["output_suffix"])[0] for x in render_nodes]
+    return render_nodes
+
+
+def get_render_nodes(root_node, namespaces=False):
+    stored_config = get_stored_config(root_node)
+    render_nodes = get_output_render_nodes(root_node)
+    nodes_for_render = []
+    for x in render_nodes:
+        if not x.endswith(stored_config["output_suffix"]):
+            continue
+        nodes_for_render.append(x.rpartition(stored_config["output_suffix"])[0])
     if not namespaces:
-        render_nodes = [techanim_creator_utils.removeNS(x) for x in render_nodes]
-    return render_nodes
-
-
-def get_render_nodes_legacy(root_node, namespaces=False):
-    render_info = techanim_creator_utils.get_info(root_node,
-                                                  CONFIG["nodes_attr"])
-    if namespaces:
-        render_nodes = render_info.keys()
-    else:
-        print(render_info)
-        render_nodes = [techanim_creator_utils.removeNS(x) for x in render_info["render_sim"].keys()]
-    return render_nodes
+        nodes_for_render = [techanim_creator_utils.removeNS(x) for x in nodes_for_render]
+    return nodes_for_render
 
 
 def get_all_setups_roots():

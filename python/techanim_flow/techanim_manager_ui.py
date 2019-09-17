@@ -674,7 +674,8 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         """
         suffix = self.active_setup.setup_config["nCloth_suffix"]
         to_cache = []
-        for item in self.sim_view_widget.selectedItems():
+        items = self.sim_view_widget.selectedItems()
+        for item in items:
             node_name = item.data(LONG_NAME_INT)
             if not node_name.endswith(suffix):
                 continue
