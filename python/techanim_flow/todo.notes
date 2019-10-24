@@ -1,0 +1,21 @@
+Techanim things to do -
+
+-Add wrap or direct connect option to the rigid options in creator
+-correct the min/max of the techanim manager ui, auto update
+-Toggle the isolate button options
+-save after chache
+-import preset packs
+    -import/export maps
+    -vert based, location based
+-cache from a certain frame
+-check start frame against nuc start frame
+-Subprocess the cache relocation from local machine to network
+-Mutually exclusive selection option
+-Rearrange the nodes in the mindows and have it reflect in the scene
+-option to disable nucleus on cache completion
+-Helpful right click options on types of nuclues nodes
+-Add execute script option to techanim creator
+-Play with the idea of cache on "hi" or "low" settings. Any attr can be
+-FIX THE BASE NAME ISSUE WHEN CREATED FOR WRAPS
+----------------------------
+Database register needs to be merged into the asset_publish_maya

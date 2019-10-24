@@ -29,6 +29,7 @@ from __future__ import unicode_literals
 # Standard
 import os
 import sys
+import winsound
 from functools import wraps
 
 import maya.cmds as cmds
@@ -106,6 +107,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
 
     green_color = QtGui.QColor(23, 158, 131)
     grey_color = QtGui.QColor(225, 225, 225)
+    dark_color = QtGui.QColor(150, 150, 150)
 
     def __init__(self, parent=None, hide_menu=False):
         super(TechAnimSetupManagerUI, self).__init__(parent=parent)
@@ -179,6 +181,35 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         """
         return self.save_post_checkb.isChecked()
 
+    @property
+    def play_chime(self):
+        """Does the user wish the scene to be saved at the end of the cache.
+        Sometimes the settings are high and require the user to "come back later"
+
+        Returns:
+            bool: Description
+        """
+        return self.play_chime_cb.isChecked()
+
+# wraps -----------------------------------------------------------------------
+
+    def check_for_chime(func):
+        """Convenience function to see if chime is desired on completion
+
+        Args:
+            func (function): function getting wrapped
+
+        Returns:
+            func: same function passed in, provided there is an active seup
+        """
+        @wraps(func)
+        def check_chime(self, *args, **kwargs):
+            results = func(self, *args, **kwargs)
+            if self.play_chime:
+                self.chime()
+            return results
+        return check_chime
+
     def check_for_active(func):
         """Convenience function to test if there is an active TechAnim_setup
         node.
@@ -220,6 +251,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.preroll_sb.valueChanged.connect(self._set_start_frame)
         self.set_frame_ncache_btn.clicked.connect(self._set_frame_range)
 
+    @check_for_chime
     @check_for_active
     def _cache_input_layer(self):
         """Cache the input layer nodes. All of them.
@@ -240,12 +272,52 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
     def delete_layers_widgets(self):
         """Upon refresh, delete the listview displaying their contents
         """
+        QtWidgets.QApplication.processEvents()
         layer_widgets = self.views_widget.layout().children()
         layer_widgets.extend(self.views_widget.children()[1:])
         for wdgt in layer_widgets:
             wdgt.deleteLater()
         self.techanim_view_widgets = []
         self.sim_view_widget = None
+        QtWidgets.QApplication.processEvents()
+
+    def view_width_hint(self, view):
+        varing_widths = [0]
+        child_count = view.count()
+        for index in range(child_count):
+            item = view.item(index)
+            ff = item.font()
+            text = item.text()
+            qf = QtGui.QFontMetrics(ff)
+            pix_width = qf.boundingRect(text).width()
+            varing_widths.append(pix_width)
+        varing_widths.sort()
+        height_hint = (qf.boundingRect(text).height() + 2) * child_count
+        width_hint = varing_widths[-1]
+
+        return QtCore.QSize((width_hint), height_hint)
+
+    def resize_to_layers(self):
+        QtWidgets.QApplication.processEvents()
+        increment_w = [0]
+        increment_h = [0]
+        self.views_widget.size().width()
+        approximate_w = int(self.views_widget.size().width() / len(self.techanim_view_widgets)) - 11
+        for layer_layout, layer_view in self.techanim_view_widgets:
+
+            manual_hint = self.view_width_hint(layer_view)
+            hint_size = layer_view.sizeHint()
+            current_size = layer_view.size()
+
+            if manual_hint.width() > approximate_w:
+                increment_w.append(manual_hint.width() - approximate_w)
+            if hint_size.height() > current_size.height():
+                increment_h.append(hint_size.height() - current_size.height())
+
+        increment_w.sort()
+        increment_h.sort()
+        offset_size = QtCore.QSize(increment_w[-1], increment_h[-1])
+        self.resize(self.size() + offset_size)
 
     def total_refresh(self):
         """Convenience function to avoid partials
@@ -256,6 +328,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
             if index < 0:
                 index = 0
             self.setup_select_cb.setCurrentIndex(index)
+        self.resize_to_layers()
 
     def refresh(self, collected_setups=False):
         """Refresh the UI and research for techanim setup nodes
@@ -279,35 +352,54 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.color_sim_view()
         self.color_input_cache_button()
 
+    def chime(self):
+        """play chime wav
+        """
+        try:
+            winsound.PlaySound(HOWTO_FILEPATH_DICT["chime_wav"],
+                               winsound.SND_ASYNC)
+        except Exception as e:
+            print("Sound file not found.")
+            print(e)
+
     def color_sim_view(self):
         """Color qlistwidgentitems depending on the sim node they represent
         """
-        blank = QtGui.QBrush()
-        blank.setColor(self.grey_color)
+        blank_brush = QtGui.QBrush()
+        blank_brush.setColor(self.grey_color)
         green_brush = QtGui.QBrush()
         green_brush.setColor(self.green_color)
+        darker_brush = QtGui.QBrush()
+        darker_brush.setColor(self.dark_color)
         cached_nodes = self.active_setup.is_sim_layer_cached()
         for index in range(self.sim_view_widget.count()):
             item = self.sim_view_widget.item(index)
+
             long_name = item.data(LONG_NAME_INT)
             short_name = techanim_creator_utils.removeNS(long_name)
             if item.data(LONG_NAME_INT) in cached_nodes:
                 # italic = True
                 text = "{} (Cached)".format(short_name)
+                brush = green_brush
             else:
                 # italic = False
                 text = short_name
+                brush = blank_brush
 
             for shapes in cmds.listRelatives(long_name, shapes=True) or [long_name]:
                 attrs = [attr for attr in SUPPORTED_TOGGLE_ATTRS
                          if cmds.attributeQuery(attr, node=shapes, ex=True)]
                 for attr in attrs:
+                    # Check the attr if disabled, then display as italic
                     if cmds.attributeQuery(attr, node=shapes, ex=True):
                         font = item.font()
                         val = cmds.getAttr("{}.{}".format(shapes, attr))
                         font.setItalic(not val)
                         item.setFont(font)
                         item.setText(text)
+                        if not val:
+                            brush = darker_brush
+                        item.setForeground(brush)
 
     def color_input_cache_button(self):
         """If the input layer is cached, color it green, grey if not.
@@ -359,7 +451,6 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.color_input_cache_button()
         self.set_sim_view_info()
         self.color_sim_view()
-        # self.update_nCache_location()
 
     def views_layout(self):
         """create the views layout
@@ -563,10 +654,14 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.postroll_sb.setButtonSymbols(no_buttons)
         self.postroll_sb.setToolTip("How many postroll frames after action.")
 
+        self.play_chime_cb = QtWidgets.QRadioButton("Play Chime")
+        self.play_chime_cb.setToolTip("Notify sound when done simulating.")
+
         layout.addWidget(self.preroll_sb)
         layout.addWidget(self.start_frame_sb)
         layout.addWidget(self.end_frame_sb)
         layout.addWidget(self.postroll_sb)
+        layout.addWidget(self.play_chime_cb)
 
         return group_widget
 
@@ -607,10 +702,6 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         layer_label = QtWidgets.QLabel(techanim_creator_utils.removeNS(layer_name).capitalize())
         layer_view = QtWidgets.QListWidget()
         layer_view.setObjectName(layer_name)
-        # layer_view.currentItemChanged.connect(self.mutually_exclusive_selection)
-        # layer_view.itemClicked.connect(self.mutually_exclusive_selection)
-        # layer_view.itemPressed.connect(self.mutually_exclusive_selection)
-        # layer_view.itemActivated.connect(self.mutually_exclusive_selection)
         layer_view.itemSelectionChanged.connect(self.__select_node)
         layer_view.installEventFilter(self)
         layer_view.setCursor(QtCore.Qt.WhatsThisCursor)
@@ -665,6 +756,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
             self.active_setup.set_start_nuclei_frame(self.total_start_frame)
             cmds.playbackOptions(e=True, minTime=self.total_start_frame)
 
+    @check_for_chime
     @check_for_active
     def create_ncache(self):
         """cache selected ncloth nodes from the setup
@@ -753,7 +845,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
             QPos (QPoint): location of the request, that
             needs to get mapped to the window
         """
-
+        QtWidgets.QApplication.processEvents()
         self.pubMenu = QtWidgets.QMenu()
         parentPosition = listview.viewport().mapToGlobal(QtCore.QPoint(0, 0))
         menu_item_01 = self.pubMenu.addAction("Select Shapes")
@@ -839,33 +931,12 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.update_ncache_btn.setMinimumWidth(150)
         self.update_ncache_btn.setMaximumWidth(250)
         self.set_frame_ncache_btn.setMinimumWidth(150)
-        # self.set_frame_ncache_btn.setMaximumWidth(250)
         self.open_ncache_dir_btn.setMinimumWidth(150)
         self.open_ncache_dir_btn.setMaximumWidth(250)
-        # layout.setAlignment(QtCore.Qt.AlignCenter)
         return group_widget
 
-    # def select_node(self, selection_item):
-    #     """Select the node listed on the listwidget
-
-    #     Args:
-    #         selection_item (QListwidgetItem): selected
-    #     """
-    #     current_view = selection_item.listWidget()
-    #     to_sel_second = []
-    #     to_sel = []
-    #     for item in current_view.selectedItems():
-    #         to_sel_second.append(item.data(LONG_NAME_INT))
-    #         display_node = item.data(DISPLAY_NODE_INT)
-    #         if display_node:
-    #             to_sel.append(display_node)
-
-    #     self.active_setup.show_nodes(to_sel + to_sel_second,
-    #                                  select_second=to_sel_second,
-    #                                  select=True)
-
     def __select_node(self):
-        QtWidgets.QApplication.processEvents()
+        # QtWidgets.QApplication.processEvents()
         items = self.get_all_selected_items()
         if not items:
             cmds.select(cl=True)
@@ -873,13 +944,6 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
                                          select=False)
             return
         self.select_node(items)
-
-    def mutually_exclusive_selection(self, selection_item):
-        current_view = selection_item.listWidget()
-        for layer_layout, layer_view in self.techanim_view_widgets:
-            if current_view == layer_view:
-                continue
-            layer_view.clearSelection()
 
     def select_node(self, selected):
         """Select the node listed on the listwidget
@@ -900,6 +964,12 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
                                      select_second=to_sel_second,
                                      select=True)
 
+    def mutually_exclusive_selection(self, selection_item):
+        current_view = selection_item.listWidget()
+        for layer_layout, layer_view in self.techanim_view_widgets:
+            if current_view == layer_view:
+                continue
+            layer_view.clearSelection()
 
     # =========================================================================
     # overrides

@@ -56,7 +56,8 @@
         "RenderGeoListView": "images/gifs/make_association.gif",
         "SimGeoListView": "images/gifs/make_association.gif",
         "AddRenderGeoButton": "images/gifs/add_render_geo.gif",
-        "easter_egg": "images/gifs/muffin.gif"
+        "easter_egg": "images/gifs/muffin.gif",
+        "chime_wav": "sounds/chime.wav"
     }
 
 }
