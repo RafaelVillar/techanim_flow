@@ -282,6 +282,15 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         QtWidgets.QApplication.processEvents()
 
     def view_width_hint(self, view):
+        """Manual estimation for the sizeHint on a QListWidget
+        because the built in one doesnt work.
+
+        Args:
+            view (QListWidget): listview
+
+        Returns:
+            QtCore.QSize: the estimated size
+        """
         varing_widths = [0]
         child_count = view.count()
         for index in range(child_count):
@@ -298,6 +307,8 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         return QtCore.QSize((width_hint), height_hint)
 
     def resize_to_layers(self):
+        """resize the entire window to fit the layer
+        """
         QtWidgets.QApplication.processEvents()
         increment_w = [0]
         increment_h = [0]

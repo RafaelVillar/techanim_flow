@@ -24,6 +24,7 @@ from __future__ import unicode_literals
 # standard
 import ast
 import copy
+import json
 import traceback
 from functools import wraps
 
@@ -47,13 +48,220 @@ RENDER_OUTPUT_KEY = "render_output"
 LOCK_ATTRS = ["tx", "ty", "tz", "rx", "ry", "rz", "sx", "sy", "sz"]
 CONFIG_ATTR = "techanim_config"
 
+TECH_MAP_EXT = "techmap"
+
 # Default options that would be interacted with from the UI
 DEFAULT_SETUP_OPTIONS = {"falloffMode": "surface",
                          "exclusiveBind": 1}
 
+nCloth_attrs_dict = {
+    "thicknessPerVertex": 1,
+    "bouncePerVertex": 1,
+    "frictionPerVertex": 1,
+    "stickinessPerVertex": 1,
+    "collideStrengthPerVertex": 1,
+    "fieldMagnitudePerVertex": 1,
+    "massPerVertex": 1,
+    "stretchPerVertex": 1,
+    "compressionPerVertex": 1,
+    "bendPerVertex": 1,
+    "bendAngleDropoffPerVertex": 1,
+    "restitutionAnglePerVertex": 1,
+    "dampPerVertex": 1,
+    "rigidityPerVertex": 1,
+    "deformPerVertex": 1,
+    "inputAttractPerVertex": 1,
+    "restLengthScalePerVertex": 1,
+    "wrinklePerVertex": 1,
+    "liftPerVertex": 1,
+    "dragPerVertex": 1,
+    "tangentialDragPerVertex": 1
+}
+
+
+rigid_attrs_dict = {
+    "thicknessPerVertex": 1,
+    "bouncePerVertex": 1,
+    "frictionPerVertex": 1,
+    "stickinessPerVertex": 1,
+    "collideStrengthPerVertex": 1,
+    "fieldMagnitudePerVertex": 1
+}
+
+
+nNode_attrs_dict = {
+    "nCloth": nCloth_attrs_dict,
+    "nRigid": rigid_attrs_dict
+}
+
+
+# =============================================================================
+# Data export
+# =============================================================================
+def fileDialog(startDir, ext=TECH_MAP_EXT, mode=0):
+    """prompt dialog for either import/export from a UI
+
+    Args:
+        startDir (str): A directory to start from
+        mode (int, optional): import or export, 0/1
+
+    Returns:
+        str: path selected by user
+    """
+
+    fPath = cmds.fileDialog2(dialogStyle=2,
+                             fileMode=mode,
+                             startingDirectory=startDir,
+                             fileFilter="Techanim flow map (*{})".format(ext))
+    if fPath is not None:
+        fPath = fPath[0]
+    return fPath
+
+
+def __importData(filePath):
+    """Return the contents of a json file. Expecting, but not limited to,
+    a dictionary.
+
+    Args:
+        filePath (string): path to file
+
+    Returns:
+        dict: contents of json file, expected dict
+    """
+    try:
+        with open(filePath, "r") as f:
+            data = json.load(f)
+            return data
+    except Exception as e:
+        print(e)
+        return None
+
+
+def __exportData(data, filePath):
+    """export data, dict, to filepath provided
+
+    Args:
+        data (dict): expected dict, not limited to
+        filePath (string): path to output json file
+    """
+    try:
+        with open(filePath, "w") as f:
+            json.dump(data, f, sort_keys=False, indent=4)
+    except Exception as e:
+        print(e)
+
 # =============================================================================
 # utils
 # =============================================================================
+
+
+def set_default_array_value(nNode, nodeType, attr, length, attr_val=None):
+    if not attr_val:
+        attr_val = nNode_attrs_dict[nodeType][attr]
+    value_array = [attr_val for x in xrange(length)]
+    cmds.setAttr("{}.{}".format(nNode, attr), value_array, type="doubleArray")
+    return value_array
+
+
+def get_all_nCloth_nodes():
+    search_key = "*{}Shape".format(CONFIG["nCloth_suffix"])
+    return cmds.ls(search_key, type="nCloth") or []
+
+
+def get_all_rigid_nodes():
+    search_key = "*{}Shape".format(CONFIG["rigid_suffix"])
+    return cmds.ls(search_key, type="nRigid") or []
+
+
+def get_all_ncloth_objects():
+    return get_all_nCloth_nodes() + get_all_rigid_nodes()
+
+
+def set_default_all_rigid_maps(rigid_nodes=None):
+    if not rigid_nodes:
+        rigid_nodes = get_all_rigid_nodes()
+    for rigid in rigid_nodes:
+        query_mesh = cmds.listConnections("{}.inputMesh".format(rigid), s=True)[0]
+        array_length = cmds.polyEvaluate(query_mesh, v=True)
+        for attr, val in rigid_attrs_dict.iteritems():
+            set_default_array_value(rigid, "nRigid", attr, array_length, attr_val=val)
+
+
+def set_default_all_nCloth_maps(nCloth_nodes=None):
+    if not nCloth_nodes:
+        nCloth_nodes = get_all_nCloth_nodes()
+    for cloth in nCloth_nodes:
+        query_mesh = cmds.listConnections("{}.outputMesh".format(cloth), d=True)[0]
+        array_length = cmds.polyEvaluate(query_mesh, v=True)
+        for attr, val in nCloth_attrs_dict.iteritems():
+            set_default_array_value(cloth, "nCloth", attr, array_length, attr_val=val)
+
+
+def set_all_maps_default():
+    nCloths = get_all_nCloth_nodes()
+    nRigids = get_all_rigid_nodes()
+    set_default_all_nCloth_maps(nCloths)
+    set_default_all_rigid_maps(nRigids)
+
+
+def get_nNodes_from_shape(shapes):
+    nNodes = []
+    for shape in shapes:
+        nodes = cmds.listConnections("{}.inMesh".format(shape), s=True, sh=True, type="nCloth") or []
+        if nodes:
+            # most likely nCloth
+            nNodes.extend(nodes)
+        else:
+            # most likely nRigid
+            nodes = cmds.listConnections("{}.worldMesh[0]".format(shape), d=True, type="nRigid") or []
+            nNodes.extend(nodes)
+    return nNodes
+
+
+def get_nNodes_from_transform(nodes):
+    nNodes = []
+    for node in nodes:
+        children = cmds.listRelatives(node, s=True, type=["mesh", "nRigid", "nCloth"]) or []
+        for child in children:
+            if cmds.objectType(child) in ["nRigid", "nCloth"]:
+                nNodes.append(child)
+            else:
+                nNodes.extend(get_nNodes_from_shape([child]))
+    return nNodes
+
+
+def default_maps_selected():
+    all_sel = cmds.ls(sl=True)
+    sel_trans = cmds.ls(all_sel, type="transform")
+    transform_children = get_nNodes_from_transform(sel_trans)
+    sel_nCloths = cmds.ls(all_sel + transform_children, type="nCloth")
+    sel_rigids = cmds.ls(all_sel + transform_children, type="nRigid")
+
+    if sel_rigids:
+        set_default_all_rigid_maps(sel_rigids)
+    if sel_nCloths:
+        set_default_all_nCloth_maps(sel_nCloths)
+
+
+def get_map_attr_data(nNode, attr):
+    return cmds.getAttr("{}.{}".format(nNode, attr))
+
+
+def get_all_maps_data(nNode):
+    nodeType = cmds.nodeType(nNode)
+    attr_dict = {}
+    for attr in nNode_attrs_dict[nodeType].keys():
+        attr_dict[attr] = get_map_attr_data(nNode, attr)
+
+    map_data_dict = {}
+    map_data_dict[removeNS(nNode)] = attr_dict
+
+    return map_data_dict
+
+
+def set_maps_data(nNode, map_data_dict):
+    for attr, val in map_data_dict[nNode].iteritems():
+        cmds.setAttr("{}.{}".format(nNode, attr), val, type="doubleArray")
 
 
 def create_chunk(func):
@@ -483,6 +691,9 @@ def create_setup(techanim_info, setup_options=None):
     create_output_layer(techanim_info[RENDER_SIM_KEY], **setup_options)
     create_layer_connections(techanim_info[RENDER_SIM_KEY])
     create_ncloth_setup(rigid_nodes)
+
+    # sets all the ncloth maps to default so the arrays are accurate
+    set_all_maps_default()
 
     input_info = {}
     for render_geo in techanim_info[RENDER_SIM_KEY].keys():
