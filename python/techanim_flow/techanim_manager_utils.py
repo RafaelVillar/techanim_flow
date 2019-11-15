@@ -10,6 +10,7 @@ import os
 import ast
 import copy
 import pprint
+import shutil
 import tempfile
 import platform
 import subprocess
@@ -174,6 +175,28 @@ def ensure_unique_cache_dir(cache_dir, suffix=""):
                                      suffix=suffix)
 
     return os.path.abspath(cache_dir)
+
+
+def copy_cache_files(cache_nodes, destination_dir, update_node_paths=False):
+    """copy the cache files to desired location
+
+    Args:
+        cache_nodes (list): of cache nodes
+        destination_dir (str): destination to relocate to
+        update_node_paths (bool, optional): update the cache nodes of the new location
+    """
+    supported_cache_extentions = ["mcx", "xml"]
+    for node in cache_nodes:
+        cache_dir = cmds.getAttr("{}.cachePath".format(node))
+        file_name = cmds.getAttr("{}.cacheName".format(node))
+        for ext in supported_cache_extentions:
+            src_file_name = "{}.{}".format(file_name, ext)
+            src_path = os.path.abspath(os.path.join(cache_dir, src_file_name))
+            dest_path = os.path.abspath(os.path.join(destination_dir, src_file_name))
+            if os.path.exists(src_path):
+                shutil.copy(src_path, dest_path)
+        if update_node_paths and os.path.exists(src_path):
+            cmds.setAttr("{}.cachePath".format(node), destination_dir, type="string")
 
 
 def get_cachefile_nodes(nodes):
@@ -443,9 +466,9 @@ class TechAnim_Setup(object):
         """
         techanim_nodes_info = {}
         for layer in desired_layers:
-            techanim_nodes_info[layer] = cmds.listRelatives(layer,
-                                                            ad=True,
-                                                            type="transform")
+            children = cmds.listRelatives(layer, ad=True, type="transform")
+            children = [x for x in children if not x.endswith("Base")]
+            techanim_nodes_info[layer] = children
         return techanim_nodes_info
 
     def is_setup_connected(self):
@@ -626,10 +649,10 @@ class TechAnim_Setup(object):
             if select_second:
                 cmds.select(select_second, add=True)
 
+        isolated_panel = cmds.paneLayout('viewPanes', q=True, pane1=True)
+        cmds.isolateSelect(isolated_panel, state=isolate)
         if isolate:
-            isolated_panel = cmds.paneLayout('viewPanes', q=True, pane1=True)
-            cmds.isolateSelect(isolated_panel, state=True)
-            cmds.isolateSelect(isolated_panel, aso=True)
+            cmds.isolateSelect(isolated_panel, aso=isolate)
 
     @enforce_cache_multithreading
     @toggle_view

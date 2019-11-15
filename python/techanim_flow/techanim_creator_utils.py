@@ -22,7 +22,9 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 
 # standard
+import os
 import ast
+import imp
 import copy
 import json
 import traceback
@@ -48,11 +50,18 @@ RENDER_OUTPUT_KEY = "render_output"
 LOCK_ATTRS = ["tx", "ty", "tz", "rx", "ry", "rz", "sx", "sy", "sz"]
 CONFIG_ATTR = "techanim_config"
 
-TECH_MAP_EXT = "techmap"
 
 # Default options that would be interacted with from the UI
 DEFAULT_SETUP_OPTIONS = {"falloffMode": "surface",
                          "exclusiveBind": 1}
+
+WRAP_FALLOW_SETTINGS_DICT = {
+    0: "surface",
+    1: "falloffMode"
+}
+
+TECH_MAP_EXT = "techmap"
+WEIGHT_MAP_NAME = "{}.{}"
 
 nCloth_attrs_dict = {
     "thicknessPerVertex": 1,
@@ -89,7 +98,7 @@ rigid_attrs_dict = {
 }
 
 
-nNode_attrs_dict = {
+nNODES_ATTR_DICT = {
     "nCloth": nCloth_attrs_dict,
     "nRigid": rigid_attrs_dict
 }
@@ -98,24 +107,6 @@ nNode_attrs_dict = {
 # =============================================================================
 # Data export
 # =============================================================================
-def fileDialog(startDir, ext=TECH_MAP_EXT, mode=0):
-    """prompt dialog for either import/export from a UI
-
-    Args:
-        startDir (str): A directory to start from
-        mode (int, optional): import or export, 0/1
-
-    Returns:
-        str: path selected by user
-    """
-
-    fPath = cmds.fileDialog2(dialogStyle=2,
-                             fileMode=mode,
-                             startingDirectory=startDir,
-                             fileFilter="Techanim flow map (*{})".format(ext))
-    if fPath is not None:
-        fPath = fPath[0]
-    return fPath
 
 
 def __importData(filePath):
@@ -157,27 +148,55 @@ def __exportData(data, filePath):
 
 def set_default_array_value(nNode, nodeType, attr, length, attr_val=None):
     if not attr_val:
-        attr_val = nNode_attrs_dict[nodeType][attr]
+        attr_val = nNODES_ATTR_DICT[nodeType][attr]
     value_array = [attr_val for x in xrange(length)]
     cmds.setAttr("{}.{}".format(nNode, attr), value_array, type="doubleArray")
     return value_array
 
 
-def get_all_nCloth_nodes():
-    search_key = "*{}Shape".format(CONFIG["nCloth_suffix"])
+def get_all_nCloth_nodes(namespace=None):
+    """get all nCloth nodes specifically
+
+    Returns:
+        list: of nNodes
+    """
+    if namespace:
+        ns = "{}:".format(namespace)
+    else:
+        ns = ""
+    search_key = "{}*{}Shape".format(ns, CONFIG["nCloth_suffix"])
     return cmds.ls(search_key, type="nCloth") or []
 
 
-def get_all_rigid_nodes():
-    search_key = "*{}Shape".format(CONFIG["rigid_suffix"])
+def get_all_rigid_nodes(namespace=None):
+    """get all nRigid nodes specifically
+
+    Returns:
+        list: of nNodes
+    """
+    if namespace:
+        ns = "{}:".format(namespace)
+    else:
+        ns = ""
+    search_key = "{}*{}Shape".format(ns, CONFIG["rigid_suffix"])
     return cmds.ls(search_key, type="nRigid") or []
 
 
-def get_all_ncloth_objects():
-    return get_all_nCloth_nodes() + get_all_rigid_nodes()
+def get_all_ncloth_objects(namespace=None):
+    """get all nodes involved with nuclei in scene
+
+    Returns:
+        list: of all nodes, ncloth, nrigid
+    """
+    return get_all_nCloth_nodes(namespace) + get_all_rigid_nodes(namespace)
 
 
 def set_default_all_rigid_maps(rigid_nodes=None):
+    """default all nRigid nodes specifically, not to be confused with nCloth nodes
+
+    Args:
+        nCloth_nodes (list, optional): of nodes to default
+    """
     if not rigid_nodes:
         rigid_nodes = get_all_rigid_nodes()
     for rigid in rigid_nodes:
@@ -188,6 +207,11 @@ def set_default_all_rigid_maps(rigid_nodes=None):
 
 
 def set_default_all_nCloth_maps(nCloth_nodes=None):
+    """default all nCloth nodes specifically, not to be confused with nRigid nodes
+
+    Args:
+        nCloth_nodes (list, optional): of nodes to default
+    """
     if not nCloth_nodes:
         nCloth_nodes = get_all_nCloth_nodes()
     for cloth in nCloth_nodes:
@@ -198,6 +222,8 @@ def set_default_all_nCloth_maps(nCloth_nodes=None):
 
 
 def set_all_maps_default():
+    """convenience function to default all ncloth nodes in the scene
+    """
     nCloths = get_all_nCloth_nodes()
     nRigids = get_all_rigid_nodes()
     set_default_all_nCloth_maps(nCloths)
@@ -205,35 +231,62 @@ def set_all_maps_default():
 
 
 def get_nNodes_from_shape(shapes):
+    """get nCloth nodes from selected shapes
+
+    Args:
+        shapes (list): list of shapes
+
+    Returns:
+        list: nCloth nodes
+    """
     nNodes = []
     for shape in shapes:
-        nodes = cmds.listConnections("{}.inMesh".format(shape), s=True, sh=True, type="nCloth") or []
+        nodes = cmds.listConnections("{}.inMesh".format(shape),
+                                     s=True,
+                                     sh=True,
+                                     type="nCloth") or []
         if nodes:
             # most likely nCloth
             nNodes.extend(nodes)
         else:
             # most likely nRigid
-            nodes = cmds.listConnections("{}.worldMesh[0]".format(shape), d=True, type="nRigid") or []
+            nodes = cmds.listConnections("{}.worldMesh[0]".format(shape),
+                                         sh=True,
+                                         d=True,
+                                         type="nRigid") or []
             nNodes.extend(nodes)
     return nNodes
 
 
-def get_nNodes_from_transform(nodes):
+def get_nNodes_from_transforms(nodes):
+    """get nCloth nodes from any selected transform nodes
+
+    Args:
+        nodes (list): list of nodes
+
+    Returns:
+        list: ncloth nodes
+    """
     nNodes = []
     for node in nodes:
-        children = cmds.listRelatives(node, s=True, type=["mesh", "nRigid", "nCloth"]) or []
+        children = cmds.listRelatives(node,
+                                      s=True,
+                                      type=["mesh", "nRigid", "nCloth"]) or []
         for child in children:
-            if cmds.objectType(child) in ["nRigid", "nCloth"]:
+            child_type = cmds.objectType(child)
+            if child_type in ["nRigid", "nCloth"]:
                 nNodes.append(child)
-            else:
+            elif child_type in ["mesh"]:
                 nNodes.extend(get_nNodes_from_shape([child]))
-    return nNodes
+    return list(set(nNodes))
 
 
 def default_maps_selected():
+    """convenience function to default the maps on the selected nNodes
+    """
     all_sel = cmds.ls(sl=True)
     sel_trans = cmds.ls(all_sel, type="transform")
-    transform_children = get_nNodes_from_transform(sel_trans)
+    transform_children = get_nNodes_from_transforms(sel_trans)
     sel_nCloths = cmds.ls(all_sel + transform_children, type="nCloth")
     sel_rigids = cmds.ls(all_sel + transform_children, type="nRigid")
 
@@ -244,13 +297,30 @@ def default_maps_selected():
 
 
 def get_map_attr_data(nNode, attr):
+    """get the data from the map attribute
+
+    Args:
+        nNode (str): name of node
+        attr (str): name of the attribute to pull from
+
+    Returns:
+        list: doublearray information from the map attribute
+    """
     return cmds.getAttr("{}.{}".format(nNode, attr))
 
 
-def get_all_maps_data(nNode):
+def get_all_maps_nnode(nNode):
+    """get all the weight data from provided node
+
+    Args:
+        nNode (str): name of the node
+
+    Returns:
+        dict: map data
+    """
     nodeType = cmds.nodeType(nNode)
     attr_dict = {}
-    for attr in nNode_attrs_dict[nodeType].keys():
+    for attr in nNODES_ATTR_DICT[nodeType].keys():
         attr_dict[attr] = get_map_attr_data(nNode, attr)
 
     map_data_dict = {}
@@ -260,8 +330,60 @@ def get_all_maps_data(nNode):
 
 
 def set_maps_data(nNode, map_data_dict):
+    """Set the map data onto the provided node from the provided dict
+
+    Args:
+        nNode (str): name of node to apply to
+        map_data_dict (dict): source of the map data
+    """
     for attr, val in map_data_dict[nNode].iteritems():
         cmds.setAttr("{}.{}".format(nNode, attr), val, type="doubleArray")
+
+
+def export_weights_to_file(path_dir, nNodes):
+    """Export all the maps from provided nCloth nodes to the dir
+
+    Args:
+        path_dir (str): directory to export weights to
+        nNodes (list): of nodes to export maps from
+    """
+    for node in nNodes:
+        fileName = WEIGHT_MAP_NAME.format(node, TECH_MAP_EXT)
+        filePath = os.path.abspath(os.path.join(path_dir, fileName))
+        map_data_dict = get_all_maps_nnode(node)
+        __exportData(map_data_dict, filePath)
+
+
+def import_weights_from_files(filepaths):
+    """import weight map data from the provided file paths
+
+    Args:
+        filepaths (list): of filepaths to weight maps
+    """
+    for path in filepaths:
+        map_data_dict = __importData(path)
+        nNode = map_data_dict.keys()[0]
+        set_maps_data(nNode, map_data_dict)
+
+
+def run_post_script(script_path):
+    """Execute post script after the techanim has been created
+
+    Args:
+        script_path (str): path to script to execute
+    """
+    techanim_post_build = imp.load_source('techanim_post_build', script_path)
+    post_step = techanim_post_build.TechanimPostStep()
+    try:
+        post_step.run()
+        msg = "Post build executed successfully."
+    except Exception as e:
+        msg = "Post build failed to execute."
+        print(e)
+    finally:
+        print(msg)
+
+    return techanim_post_build, post_step
 
 
 def create_chunk(func):
@@ -307,7 +429,7 @@ def create_wrap(driver,
                 exclusiveBind=1,
                 autoWeightThreshold=1,
                 renderInfl=0,
-                falloffMode="surface"):
+                falloffMode=1):
 
     cmds.optionVar(fv=["weightThreshold", weightThreshold])
     cmds.optionVar(iv=["limitWrapInfluence", limitWrapInfluence])
@@ -316,8 +438,7 @@ def create_wrap(driver,
     cmds.optionVar(iv=["exclusiveBind", exclusiveBind])
     cmds.optionVar(iv=["autoWeightThreshold", autoWeightThreshold])
     cmds.optionVar(iv=["renderInfl", renderInfl])
-    print("falloffMode", falloffMode)
-    cmds.optionVar(sv=["falloffMode", falloffMode])
+    cmds.optionVar(sv=["falloffMode", WRAP_FALLOW_SETTINGS_DICT[falloffMode]])
 
     cmds.select(cl=True)
     cmds.select(driven)
@@ -408,9 +529,7 @@ def create_techanim_grouping():
         cmds.setAttr("{}.v".format(order), 0)
 
 
-def create_input_layer(techanim_info,
-                       falloffMode=1,
-                       exclusiveBind=1):
+def create_input_layer(techanim_info, falloffMode=1, exclusiveBind=1, **kwargs):
     """Convenience function to create the input layer
 
     Args:
@@ -484,7 +603,7 @@ def create_rigid_nodes(rigid_nodes, nucleus_node):
             cmds.connectAttr(source_plug, dest_plug, f=True)
 
 
-def create_output_layer(techanim_info, falloffMode=1, exclusiveBind=1):
+def create_output_layer(techanim_info, falloffMode=1, exclusiveBind=1, **kwargs):
     """Convenience function to create the output layer
 
     Args:
@@ -667,6 +786,22 @@ def create_ncloth_setup(rigid_nodes):
     return nCloth_shapes
 
 
+def activate_ncloth_maps():
+    """Maya sometimes wont register the ability to paint nmaps without first
+    simulating them.
+    """
+    all_ncloth_objects = get_all_nCloth_nodes()
+    for nNode in all_ncloth_objects:
+        cmds.setAttr("{}.isDynamic".format(nNode, 1))
+
+    for nuc in cmds.ls(type="nucleus"):
+        cmds.setAttr("{}.enable".format(nuc), 1)
+        cmds.setAttr("{}.startFrame".format(nuc), 1)
+
+    [cmds.currentTime(x, e=True, u=True) for x in xrange(1, 4, 1)]
+    cmds.currentTime(1)
+
+
 @create_chunk
 def create_setup(techanim_info, setup_options=None):
     """create the entire default setup
@@ -692,9 +827,6 @@ def create_setup(techanim_info, setup_options=None):
     create_layer_connections(techanim_info[RENDER_SIM_KEY])
     create_ncloth_setup(rigid_nodes)
 
-    # sets all the ncloth maps to default so the arrays are accurate
-    set_all_maps_default()
-
     input_info = {}
     for render_geo in techanim_info[RENDER_SIM_KEY].keys():
         input_info[render_geo] = "{}{}".format(render_geo,
@@ -711,3 +843,14 @@ def create_setup(techanim_info, setup_options=None):
     cmds.select(cl=True)
     cmds.select(CONFIG["techanim_root"])
     mel.eval('createAndAssignShader lambert "";')
+    activate_ncloth_maps()
+    # sets all the ncloth maps to default so the arrays are accurate
+    # for importing/exporting
+    set_all_maps_default()
+    nClothMapsPaths = setup_options.get("nClothMapsPaths", [])
+    if nClothMapsPaths:
+        import_weights_from_files(nClothMapsPaths)
+
+    postScriptPath = setup_options.get("postScriptPath", None)
+    if postScriptPath and os.path.exists(postScriptPath):
+        run_post_script(postScriptPath)

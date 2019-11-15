@@ -8,6 +8,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import unicode_literals
 
+import maya.cmds as cmds
 import maya.OpenMayaUI as omui
 
 from shiboken2 import wrapInstance
@@ -16,6 +17,12 @@ try:
     from Qt import QtWidgets
 except Exception:
     from PySide2 import QtWidgets
+
+# =============================================================================
+# constants
+# =============================================================================
+
+TECH_MAP_EXT = "techmap"
 
 
 def genericWarning(parent, warningText):
@@ -30,6 +37,7 @@ def genericWarning(parent, warningText):
     """
     selWarning = QtWidgets.QMessageBox(parent)
     selWarning.setText(warningText)
+    selWarning.setStandardButtons(QtWidgets.QMessageBox.Ok | QtWidgets.QMessageBox.Cancel)
     results = selWarning.exec_()
     return results
 
@@ -96,6 +104,42 @@ def close_existing(class_name=None, object_name=None):
         # Delete
         widget.deleteLater()
         del(widget)
+
+
+def fileDialog(startDir, ext=TECH_MAP_EXT, mode=0):
+    """prompt dialog for either import/export from a UI
+
+    Args:
+        startDir (str): A directory to start from
+        mode (int, optional): import or export, 0/1
+
+    Returns:
+        str: path selected by user
+    """
+
+    fPath = cmds.fileDialog2(dialogStyle=2,
+                             fileMode=mode,
+                             startingDirectory=startDir,
+                             fileFilter="Techanim flow map (*{})".format(ext))
+    if fPath is not None:
+        fPath = fPath[0]
+    return fPath
+
+
+def QtFileDialog_file(ext, parent=None):
+    options = QtWidgets.QFileDialog.Options()
+    options |= QtWidgets.QFileDialog.DontUseNativeDialog
+    file_types = ";(*.{})".format(ext)
+    fileName, _ = QtWidgets.QFileDialog.getOpenFileName(parent, "QFileDialog.getOpenFileName()", "", file_types, options=options)
+    return fileName
+
+
+def QtFileDialog_files(ext, parent=None):
+    options = QtWidgets.QFileDialog.Options()
+    options |= QtWidgets.QFileDialog.DontUseNativeDialog
+    file_types = ";(*.{})".format(ext)
+    files, _ = QtWidgets.QFileDialog.getOpenFileNames(parent, "QFileDialog.getOpenFileNames()", "", file_types, options=options) or []
+    return files
 
 
 class GenericSelectionUI(QtWidgets.QDialog):

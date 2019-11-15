@@ -29,6 +29,7 @@ from __future__ import unicode_literals
 # Standard
 import os
 import sys
+import time
 import winsound
 from functools import wraps
 
@@ -63,7 +64,6 @@ childTypes: {childTypes}
 """
 
 WINDOW_TITLE = "TechAnim Setup Manager"
-
 NULL_SETUP_SELECT_TEXT = "Select Setup"
 
 # This is for the images folder, but this may not be needed
@@ -78,9 +78,16 @@ for _key, _path in HOWTO_FILEPATH_DICT.iteritems():
 
 os.environ["PRESET_SHARE_BASE_DIR"] = CONFIG["PRESET_SHARE_BASE_DIR"]
 
-
 SUPPORTED_TOGGLE_ATTRS = ["isDynamic", "enable"]
 
+BUTTON_CHECKED_STYLESHEET = """QPushButton:checked {
+      background-color: rgba(0, 126, 158, 1);
+      border: 1;
+}"""
+
+# =============================================================================
+# general functions
+# =============================================================================
 
 def show(hide_menu=False, *args):
     """To launch the ui and not get the same instance
@@ -124,7 +131,8 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.mainLayout.addWidget(self.setup_selector_widget())
         self.mainLayout.addWidget(self.frame_range_widget())
         self.mainLayout.addLayout(self.input_layer_layout())
-        self.mainLayout.addWidget(self.views_layout())
+        self.mainLayout.addWidget(self.layer_views_section())
+        self.views_widget.layout().insertLayout(0, self.selection_settings_layout())
         self.mainLayout.addWidget(self.create_ncahe_widget())
         if hide_menu:
             self.mainLayout.setMenuBar(self.menu_bar_widget(hideable=hide_menu))
@@ -210,7 +218,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
             return results
         return check_chime
 
-    def check_for_active(func):
+    def check_for_active_setup(func):
         """Convenience function to test if there is an active TechAnim_setup
         node.
 
@@ -229,6 +237,23 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
             else:
                 return func(self, *args, **kwargs)
         return check_active
+
+    def check_for_active_nucleus(func):
+
+        @wraps(func)
+        def check_active_nuc(self, *args, **kwargs):
+            all_nucs = self.active_setup.get_nuclei()
+            nuc_values = [cmds.getAttr("{}.enable".format(x)) for x in all_nucs]
+            if not all(nuc_values):
+                msg = "Nucleus node(s) are not enabled. Continue?"
+                results = ui_utils.genericWarning(self, msg)
+                if results == 1024:
+                    return func(self, *args, **kwargs)
+                else:
+                    return None
+            else:
+                return func(self, *args, **kwargs)
+        return check_active_nuc
 
     def reconnect_signals(self):
         """Reconnect signals upon refresh
@@ -250,9 +275,11 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.start_frame_sb.valueChanged.connect(self._set_start_frame)
         self.preroll_sb.valueChanged.connect(self._set_start_frame)
         self.set_frame_ncache_btn.clicked.connect(self._set_frame_range)
+        self.isolate_btn.toggled.connect(self.__select_node)
+        self.mutually_exclusive_sel_btn.toggled.connect(self.__select_node)
 
     @check_for_chime
-    @check_for_active
+    @check_for_active_setup
     def _cache_input_layer(self):
         """Cache the input layer nodes. All of them.
         """
@@ -262,7 +289,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.color_input_cache_button()
         cmds.currentTime(self.total_start_frame)
 
-    @check_for_active
+    @check_for_active_setup
     def _delete_cache_input_layer(self):
         """Cache the input layer nodes. All of them.
         """
@@ -273,9 +300,10 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         """Upon refresh, delete the listview displaying their contents
         """
         QtWidgets.QApplication.processEvents()
-        layer_widgets = self.views_widget.layout().children()
-        layer_widgets.extend(self.views_widget.children()[1:])
+        layer_widgets = self.layer_views_layout.children()
+        layer_widgets.extend(self.layer_widget.children()[1:])
         for wdgt in layer_widgets:
+            wdgt.parent()
             wdgt.deleteLater()
         self.techanim_view_widgets = []
         self.sim_view_widget = None
@@ -463,14 +491,52 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.set_sim_view_info()
         self.color_sim_view()
 
-    def views_layout(self):
+    def selection_settings_layout(self):
+        selection_layout = QtWidgets.QHBoxLayout()
+        selection_layout.setContentsMargins(0, 0, 0, 0)
+        style = QtWidgets.QStyle
+        icon_size = QtCore.QSize(15, 15)
+
+        self.isolate_btn = QtWidgets.QPushButton()
+        self.isolate_btn.setMaximumHeight(30)
+        self.isolate_btn.setMaximumWidth(30)
+        self.isolate_btn.setIcon(self.style().standardIcon(getattr(style, "SP_FileDialogContentsView")))
+        self.isolate_btn.setIconSize(icon_size)
+        self.isolate_btn.setToolTip("Isolate the view when selecting.")
+        self.isolate_btn.setCheckable(True)
+        self.isolate_btn.setStyleSheet(BUTTON_CHECKED_STYLESHEET)
+
+        self.mutually_exclusive_sel_btn = QtWidgets.QPushButton()
+        self.mutually_exclusive_sel_btn.setMaximumHeight(30)
+        self.mutually_exclusive_sel_btn.setMaximumWidth(30)
+        self.mutually_exclusive_sel_btn.setIcon(self.style().standardIcon(getattr(style, "SP_FileDialogDetailedView")))
+        self.mutually_exclusive_sel_btn.setIconSize(icon_size)
+        self.mutually_exclusive_sel_btn.setToolTip("Mutually Exclusive selection.")
+        self.mutually_exclusive_sel_btn.setCheckable(True)
+        self.mutually_exclusive_sel_btn.setStyleSheet(BUTTON_CHECKED_STYLESHEET)
+
+        selection_layout.addWidget(self.isolate_btn, 0, QtCore.Qt.AlignRight)
+        selection_layout.addWidget(self.mutually_exclusive_sel_btn, 0, QtCore.Qt.AlignLeft)
+        selection_layout.setSpacing(1)
+        return selection_layout
+
+    def layer_views_section(self):
         """create the views layout
 
         Returns:
             QGroupbox: So it can be parented where needed
         """
         self.views_widget = QtWidgets.QGroupBox("Layer Nodes")
-        self.views_widget.setLayout(QtWidgets.QHBoxLayout())
+        self.views_widget.setContentsMargins(0, 0, 0, 0)
+        layout = QtWidgets.QVBoxLayout()
+        layout.setSpacing(1)
+        self.views_widget.setLayout(layout)
+        self.layer_widget = QtWidgets.QWidget()
+        self.layer_widget.setContentsMargins(0, 0, 0, 0)
+        self.layer_views_layout = QtWidgets.QHBoxLayout()
+        self.layer_views_layout.setSpacing(1)
+        self.layer_widget.setLayout(self.layer_views_layout)
+        layout.addWidget(self.layer_widget)
         return self.views_widget
 
     def order_sim_view(self):
@@ -548,7 +614,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
             sBox_palette.setColor(QtGui.QPalette.Base, bg_color.darker(110))
             layer_view.setPalette(sBox_palette)
 
-            self.views_widget.layout().addLayout(layer_layout)
+            self.layer_views_layout.addLayout(layer_layout)
             self.techanim_view_widgets.append([layer_layout, layer_view])
 
     def get_techanim_setups(self):
@@ -698,7 +764,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
 
         return layout
 
-    def create_layerview_widget(self, layer_name, nodes, isolate_btn=False):
+    def create_layerview_widget(self, layer_name, nodes):
         """Create the view layer widget representing the layers in the setup.
         Populated with the children nodes
 
@@ -736,7 +802,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
 
         return layer_layout, layer_view
 
-    @check_for_active
+    @check_for_active_setup
     def delete_ncache(self):
         """Delete ncache on the selected ncloth nodes
         """
@@ -750,14 +816,14 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         self.active_setup.delete_sim_cache(to_cache)
         self.color_sim_view()
 
-    @check_for_active
+    @check_for_active_setup
     def update_nCache_location(self):
         """Update the nCache dir on the current setup. This will not move
         existing caches. New paths will be created in this location.
         """
         self.active_setup.update_cache_dir(CONFIG["cache_dir"])
 
-    @check_for_active
+    @check_for_active_setup
     def open_cache_dir(self):
         path = self.active_setup.get_cache_dir()
         techanim_manager_utils.open_folder(path)
@@ -765,10 +831,11 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
     def _set_start_frame(self, changed=None):
         if self.active_setup:
             self.active_setup.set_start_nuclei_frame(self.total_start_frame)
-            cmds.playbackOptions(e=True, minTime=self.total_start_frame)
+            # cmds.playbackOptions(e=True, minTime=self.total_start_frame)
 
+    @check_for_active_nucleus
     @check_for_chime
-    @check_for_active
+    @check_for_active_setup
     def create_ncache(self):
         """cache selected ncloth nodes from the setup
 
@@ -788,16 +855,24 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
             ui_utils.genericWarning(self, msg)
             return
         self.active_setup.set_start_nuclei_frame(self.total_start_frame)
+        cmds.currentTime(self.total_start_frame, e=True)
+        start = time.time()
+
         self.active_setup.cache_sim_nodes(to_cache,
                                           self.total_start_frame,
                                           self.total_end_frame,
                                           post_save=self.save_scene_post_cache)
+        end = time.time()
+        print("Started {}".format(start))
+        print("Ended {}".format(end))
+        print("nCaching tool {} to comeplete".format(end - start))
         self.active_setup.set_start_nuclei_frame(self.start_frame)
         self.color_sim_view()
 
     def _set_frame_range(self):
-        start_frame = cmds.playbackOptions(q=True, minTime=True)
-        end_frame = cmds.playbackOptions(q=True, maxTime=True)
+        # start_frame = cmds.playbackOptions(q=True, minTime=True)
+        # end_frame = cmds.playbackOptions(q=True, maxTime=True)
+        start_frame = self.total_start_frame
         if self.active_setup:
             self.active_setup.set_start_nuclei_frame(start_frame)
             cmds.currentTime(start_frame)
@@ -814,7 +889,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         Returns:
             Bool: original super call
         """
-        if QEvent.type() == QtCore.QEvent.Type.ContextMenu:
+        if type(QEvent) != QtWidgets.QWidgetItem and QEvent.type() == QtCore.QEvent.Type.ContextMenu:
             self.create_context_menu(QObject, QEvent)
             return True
 
@@ -947,7 +1022,13 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         return group_widget
 
     def __select_node(self):
+        if not self.active_setup:
+            return
         # QtWidgets.QApplication.processEvents()
+        if self.mutually_exclusive_sel_btn.isChecked():
+            for lay, view in self.techanim_view_widgets:
+                if not view.hasFocus():
+                    view.clearSelection()
         items = self.get_all_selected_items()
         if not items:
             cmds.select(cl=True)
@@ -973,7 +1054,8 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
 
         self.active_setup.show_nodes(to_sel + to_sel_second,
                                      select_second=to_sel_second,
-                                     select=True)
+                                     select=True,
+                                     isolate=self.isolate_btn.isChecked())
 
     def mutually_exclusive_selection(self, selection_item):
         current_view = selection_item.listWidget()

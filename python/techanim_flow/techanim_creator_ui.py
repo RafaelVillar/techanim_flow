@@ -34,6 +34,7 @@ from techanim_flow import ui_utils
 from techanim_flow import config_io
 from techanim_flow import techanim_creator_utils
 reload(config_io)
+reload(ui_utils)
 reload(techanim_creator_utils)
 
 
@@ -388,16 +389,23 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         self.mainLayout = QtWidgets.QVBoxLayout()
         self.setLayout(self.mainLayout)
 
+        self.mainLayout.addWidget(self.load_techanim_info_layout())
         self.mainLayout.addLayout(self.geo_selection_layout())
+        self.mainLayout.addWidget(self.nCloth_settings_widget())
         self.mainLayout.addWidget(self.wrap_settings_layout())
-        self.mainLayout.addWidget(self.nCloth_settings())
-        self.create_btn = QtWidgets.QPushButton("Create Setup")
-        self.create_btn.setToolTip("Create setup when ALL associations have been made.")
-        self.create_btn.setEnabled(False)
-        self.mainLayout.addWidget(self.create_btn)
+
+        self.mainLayout.addWidget(self.create_setup_options_widget())
         self.mainLayout.addWidget(self.utils_layout())
         self.associate_control = AssociateSelectionControl(self.render_geo_view,
                                                            self.sim_geo_view)
+        # setup options -------------------------------------------------------
+        self.setup_options = {
+            "falloffMode": self.wrap_falloff_cb,
+            "exclusiveBind": self.wrap_exclusive_cb,
+            "postScriptPath": self.post_script_edit,
+            "nClothMapsPaths": self.ncloth_maps_edit
+        }
+
 
         # attach signals and filters ------------------------------------------
         self.create_signal_connections()
@@ -416,6 +424,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         """
         as_co = self.associate_control
         # connections ---------------------------------------------------------
+        self.user_techanim_info_button.clicked.connect(self.load_user_techanim_info)
         as_co.viewA.clicked.connect(self.select_from_list)
         as_co.viewB.clicked.connect(self.select_from_list)
 
@@ -451,8 +460,77 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         self.add_passive_btn.clicked.connect(self.add_passive_geo)
 
         as_co.all_pairs_made.connect(self.create_btn.setEnabled)
+        self.ncloth_maps_button.clicked.connect(self.load_files_dialog)
+        self.post_script_button.clicked.connect(self.post_script_dialog)
         self.create_btn.clicked.connect(self.create_setup)
         self.add_driven_nodes_btn.clicked.connect(self.add_driven_render_nodes)
+        self.default_selected_maps_btn.clicked.connect(self.default_maps_on_selected)
+
+    def load_files_dialog(self, ext=techanim_creator_utils.TECH_MAP_EXT):
+        """filedialog for selecting files to load. Generic
+
+        Args:
+            ext (str, optional): extension of desired filetype
+
+        Returns:
+            str: path of the selected file
+        """
+        abd_paths = []
+        selected_files = ui_utils.QtFileDialog_files(ext, self)
+        if not selected_files:
+            return
+        abd_paths = [os.path.abspath(x) for x in selected_files]
+        self.ncloth_maps_edit.setText(str(abd_paths))
+        return abd_paths
+
+    def post_script_dialog(self):
+        """load the post script file path into the UI
+
+        Returns:
+            str: selected python file
+        """
+        script_path = ui_utils.QtFileDialog_file("py", self)
+        if not script_path:
+            return
+        script_path = os.path.abspath(script_path)
+        self.post_script_edit.setText(script_path)
+        return script_path
+
+    def load_user_techanim_info(self):
+        """load techanim info from a previous built setups
+
+        Returns:
+            n/a: zip
+        """
+        techanim_info = ast.literal_eval(self.user_techanim_info_edit.text() or "{}")
+        if not techanim_info:
+            return
+
+        as_co = self.associate_control
+        as_co.association_dict = techanim_info["render_sim"]
+        render_model = self.render_geo_view.model()
+        sim_model = self.sim_geo_view.model()
+        render_model.clear()
+        sim_model.clear()
+        as_co.add_items(render_model, techanim_info["render_sim"].keys())
+        as_co.add_items(sim_model, techanim_info["render_sim"].values())
+        self.passive_edit.setText(str(techanim_info["rigid_nodes"]))
+
+        setup_options = techanim_info.get("setup_options", {})
+        if setup_options:
+            for ui_key, value in setup_options.iteritems():
+                ui_object = self.setup_options.get(ui_key)
+                ui_object_type = type(ui_object)
+                if ui_object_type == QtWidgets.QComboBox:
+                    ui_object.setCurrentIndex(value)
+                elif ui_object_type == QtWidgets.QLineEdit:
+                    ui_object.setText(str(value))
+
+        as_co.is_list_complete()
+
+    def default_maps_on_selected(self):
+        techanim_creator_utils.default_maps_selected()
+        print("Maps have been defaulted!")
 
     def select_from_list(self, modelIndex):
         """Select the node from the listview in the scene
@@ -526,6 +604,25 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         """
         model = self.associate_control.modelB
         self.sim_label.setText("Sim Geo ({})".format(model.rowCount()))
+
+    def load_techanim_info_layout(self):
+        """widget containing the area the user posts information for a previously
+        created setup
+
+        Returns:
+            Qwidget: to be parented
+        """
+        group_widget = QtWidgets.QGroupBox("Load Techanim Info")
+        # group_widget.setCheckable(True)
+        layout = QtWidgets.QHBoxLayout()
+        label = QtWidgets.QLabel("Load Config:")
+        self.user_techanim_info_edit = QtWidgets.QLineEdit()
+        self.user_techanim_info_button = QtWidgets.QPushButton("Load")
+        group_widget.setLayout(layout)
+        layout.addWidget(label)
+        layout.addWidget(self.user_techanim_info_edit)
+        layout.addWidget(self.user_techanim_info_button)
+        return group_widget
 
     def geo_selection_layout(self):
         """The render & sim qListview of the UI
@@ -605,7 +702,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
 
         return group_widget
 
-    def nCloth_settings(self):
+    def nCloth_settings_widget(self):
         """layout containing the widgets for taking in nCloth settings
 
         Returns:
@@ -629,6 +726,37 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
 
         return group_widget
 
+    def create_setup_options_widget(self):
+        group_widget = QtWidgets.QGroupBox("Create Settings")
+        layout = QtWidgets.QVBoxLayout()
+        # load maps -----------------------------------------------------------
+        layout_a = QtWidgets.QHBoxLayout()
+        label_a = QtWidgets.QLabel("nCloth Maps:")
+        self.ncloth_maps_edit = QtWidgets.QLineEdit()
+        self.ncloth_maps_button = QtWidgets.QPushButton("...")
+        layout_a.addWidget(label_a)
+        layout_a.addWidget(self.ncloth_maps_edit)
+        layout_a.addWidget(self.ncloth_maps_button)
+
+        # load post script ----------------------------------------------------
+        layout_b = QtWidgets.QHBoxLayout()
+        label_b = QtWidgets.QLabel("Post Script:    ")
+        self.post_script_edit = QtWidgets.QLineEdit()
+        self.post_script_button = QtWidgets.QPushButton("...")
+        layout_b.addWidget(label_b)
+        layout_b.addWidget(self.post_script_edit)
+        layout_b.addWidget(self.post_script_button)
+
+        layout.addLayout(layout_a)
+        layout.addLayout(layout_b)
+
+        self.create_btn = QtWidgets.QPushButton("Create Setup")
+        self.create_btn.setToolTip("Create setup when ALL associations have been made.")
+        self.create_btn.setEnabled(False)
+        layout.addWidget(self.create_btn)
+        group_widget.setLayout(layout)
+        return group_widget
+
     def utils_layout(self):
         group_widget = QtWidgets.QGroupBox("Utils")
         # falloff -------------------------------------------------------------
@@ -640,8 +768,13 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         msg = msg.format(**CONFIG)
         self.add_driven_nodes_btn.setWhatsThis(msg)
         self.add_driven_nodes_btn.setToolTip(msg)
+
+        msg = "Default selected maps"
+        self.default_selected_maps_btn = QtWidgets.QPushButton(msg)
+
         layout_a.addWidget(self.add_driven_nodes_btn)
         layout.addLayout(layout_a)
+        layout.addWidget(self.default_selected_maps_btn)
         group_widget.setLayout(layout)
         return group_widget
 
@@ -659,14 +792,17 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         if not tmp:
             return
         rigid_nodes = ast.literal_eval(self.passive_edit.text() or "[]")
-        tmp["rigid_nodes"] = rigid_nodes
+        nClothMapsPaths = self.ncloth_maps_edit.text() or []
+        nClothMapsPaths = ast.literal_eval(nClothMapsPaths)
         setup_options = {
-            "falloffMode": self.wrap_falloff_cb.currentText()[0],
-            "exclusiveBind": self.wrap_exclusive_cb.currentIndex() + 1
+            "falloffMode": self.setup_options["falloffMode"].currentIndex(),
+            "exclusiveBind": self.setup_options["exclusiveBind"].currentIndex(),
+            "postScriptPath": self.post_script_edit.text(),
+            "nClothMapsPaths": nClothMapsPaths
         }
-        print(association_dict)
+        render_sim_association_dict["rigid_nodes"] = rigid_nodes
+        render_sim_association_dict["setup_options"] = setup_options
         print(render_sim_association_dict)
-        print(setup_options)
         techanim_creator_utils.create_setup(render_sim_association_dict,
                                             setup_options=setup_options)
 
@@ -717,6 +853,12 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
             QEvent.accept()
 
         return False
+
+    def show(self):
+        """Set focus to desired
+        """
+        super(TechAnimCreatorUI, self).show()
+        self.setFocus()
 
 
 # if __name__ == '__main__':
