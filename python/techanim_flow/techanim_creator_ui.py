@@ -18,7 +18,6 @@ from __future__ import unicode_literals
 
 import os
 import ast
-import sys
 import copy
 
 from functools import partial
@@ -792,7 +791,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         if not tmp:
             return
         rigid_nodes = ast.literal_eval(self.passive_edit.text() or "[]")
-        nClothMapsPaths = self.ncloth_maps_edit.text() or []
+        nClothMapsPaths = self.ncloth_maps_edit.text() or "[]"
         nClothMapsPaths = ast.literal_eval(nClothMapsPaths)
         setup_options = {
             "falloffMode": self.setup_options["falloffMode"].currentIndex(),

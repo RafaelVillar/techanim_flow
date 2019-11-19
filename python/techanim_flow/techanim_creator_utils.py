@@ -340,7 +340,7 @@ def set_maps_data(nNode, map_data_dict):
         cmds.setAttr("{}.{}".format(nNode, attr), val, type="doubleArray")
 
 
-def export_weights_to_file(path_dir, nNodes):
+def export_weights_to_file(path_dir, nNodes, map_data_dict=None):
     """Export all the maps from provided nCloth nodes to the dir
 
     Args:
@@ -350,7 +350,8 @@ def export_weights_to_file(path_dir, nNodes):
     for node in nNodes:
         fileName = WEIGHT_MAP_NAME.format(node, TECH_MAP_EXT)
         filePath = os.path.abspath(os.path.join(path_dir, fileName))
-        map_data_dict = get_all_maps_nnode(node)
+        if not map_data_dict:
+            map_data_dict = get_all_maps_nnode(node)
         __exportData(map_data_dict, filePath)
 
 
