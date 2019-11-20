@@ -57,7 +57,7 @@ DEFAULT_SETUP_OPTIONS = {"falloffMode": "surface",
 
 WRAP_FALLOW_SETTINGS_DICT = {
     0: "surface",
-    1: "falloffMode"
+    1: "volume"
 }
 
 TECH_MAP_EXT = "techmap"

@@ -48,10 +48,17 @@ TECH_PYTHON_PATH = os.path.abspath(os.path.join(DIR_PATH, os.pardir))
 ROOT_MODULE_PATH = os.path.abspath(os.path.join(TECH_PYTHON_PATH, os.pardir))
 HOWTO_FILEPATH_DICT = CONFIG.get("HOWTO_FILEPATH_DICT", {})
 
+WRAP_FALLOW_SETTINGS_DICT = {
+    "surface": 0,
+    "volume": 1
+}
+
 
 for _key, _path in HOWTO_FILEPATH_DICT.iteritems():
     HOWTO_FILEPATH_DICT[_key] = os.path.join(ROOT_MODULE_PATH,
                                              os.path.normpath(_path))
+
+
 
 
 def show(*args):
@@ -818,7 +825,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
             msg = msg.format(CONFIG["output_suffix"])
             ui_utils.genericWarning(self, msg)
             return
-        falloffMode = self.wrap_falloff_cb.currentText()
+        falloffMode = WRAP_FALLOW_SETTINGS_DICT[self.wrap_falloff_cb.currentText().lower()]
         exclusiveBind = self.wrap_exclusive_cb.currentIndex() + 1
         techanim_creator_utils.add_driven_render_nodes(driver,
                                                        driven,
