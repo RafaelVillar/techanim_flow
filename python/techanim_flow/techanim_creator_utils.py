@@ -329,15 +329,22 @@ def get_all_maps_nnode(nNode):
     return map_data_dict
 
 
-def set_maps_data(nNode, map_data_dict):
+def set_maps_data(nNode, map_data_dict, namespace=None):
     """Set the map data onto the provided node from the provided dict
 
     Args:
         nNode (str): name of node to apply to
         map_data_dict (dict): source of the map data
     """
+    if namespace:
+        namespace = "{}:".format(namespace)
+    else:
+        namespace = ""
+
+    ns_nNode = "{}{}".format(namespace, nNode)
     for attr, val in map_data_dict[nNode].iteritems():
-        cmds.setAttr("{}.{}".format(nNode, attr), val, type="doubleArray")
+        node_plug = "{}.{}".format(ns_nNode, attr)
+        cmds.setAttr(node_plug, val, type="doubleArray")
 
 
 def export_weights_to_file(path_dir, nNodes, map_data_dict=None):
@@ -355,7 +362,7 @@ def export_weights_to_file(path_dir, nNodes, map_data_dict=None):
         __exportData(map_data_dict, filePath)
 
 
-def import_weights_from_files(filepaths):
+def import_weights_from_files(filepaths, namespace=None):
     """import weight map data from the provided file paths
 
     Args:
@@ -364,7 +371,7 @@ def import_weights_from_files(filepaths):
     for path in filepaths:
         map_data_dict = __importData(path)
         nNode = map_data_dict.keys()[0]
-        set_maps_data(nNode, map_data_dict)
+        set_maps_data(nNode, map_data_dict, namespace=namespace)
 
 
 def run_post_script(script_path):
