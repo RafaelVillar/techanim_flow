@@ -354,12 +354,14 @@ def export_weights_to_file(path_dir, nNodes, map_data_dict=None):
         path_dir (str): directory to export weights to
         nNodes (list): of nodes to export maps from
     """
+    if not map_data_dict:
+        map_data_dict = {}
     for node in nNodes:
-        fileName = WEIGHT_MAP_NAME.format(node, TECH_MAP_EXT)
-        filePath = os.path.abspath(os.path.join(path_dir, fileName))
-        if not map_data_dict:
-            map_data_dict = get_all_maps_nnode(node)
-        __exportData(map_data_dict, filePath)
+        no_ns_node = removeNS(node)
+        fileName = WEIGHT_MAP_NAME.format(no_ns_node, TECH_MAP_EXT)
+        filepath = os.path.abspath(os.path.join(path_dir, fileName))
+        node_map_data_dict = map_data_dict.get(no_ns_node, get_all_maps_nnode(node))
+        __exportData(node_map_data_dict, filepath)
 
 
 def import_weights_from_files(filepaths, namespace=None):
