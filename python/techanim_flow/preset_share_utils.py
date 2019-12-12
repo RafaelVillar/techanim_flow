@@ -562,6 +562,23 @@ def apply_preset_file(filePath, node):
     apply_preset(preset_info, node)
 
 
+def _set_notes(node, preset_info):
+    """convenience function to set notes on node
+
+    Args:
+        node (str): name of node
+        preset_info (dict): of all node information for note formatting
+    """
+    node_plug = "{}.notes".format(node)
+    note_value = NOTE_TEMPLATE.format(**preset_info)
+    if not cmds.objExists(node_plug):
+        try:
+            cmds.addAttr(node, ln="notes", dt="string")
+        except RuntimeError:
+            pass
+    cmds.setAttr(node_plug, note_value, type="string")
+
+
 def apply_preset(preset_info, node):
     """apply preset to a node
 
@@ -582,12 +599,4 @@ def apply_preset(preset_info, node):
             unsettable.append(plug)
             continue
 
-    note_value = NOTE_TEMPLATE.format(**preset_info)
-    try:
-        cmds.addAttr(node, ln="notes", dt="string")
-    except RuntimeError:
-        pass
-    cmds.setAttr("{}.notes".format(node), note_value, type="string")
-    if unsettable:
-        msg = "The following attributes were skipped. \n{}"
-        cmds.warning(msg.format(unsettable))
+    return unsettable
