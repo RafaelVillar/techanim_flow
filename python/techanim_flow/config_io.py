@@ -23,9 +23,10 @@ __credits__ = ["Bae Jaechul", "www.studioanima.co.jp/en/"]
 
 TECHANIM_ENV_CONFIG = "TECHANIM_ENV_CONFIG"
 TECHANIM_CONFIG_NAME = "techanim_config.json"
+TECHANIM_CACHE_SESSION = "TECHANIM_CACHE_SESSION_DIR"
 
 
-def get_environment_config(env_name):
+def get_techanim_config(env_name):
     """Get the config from the environment, if not get the default from
     the module
 
@@ -40,7 +41,9 @@ def get_environment_config(env_name):
     techanim_config_path = os.environ.get(env_name, default_config_path)
     with open(techanim_config_path, 'r') as f:
         config = json.load(f)
-        return config
+    session_cache_dir = os.environ.get(TECHANIM_CACHE_SESSION, config["cache_dir"])
+    config["cache_dir"] = os.path.abspath(session_cache_dir)
+    return config
 
 
-CONFIG = get_environment_config(TECHANIM_ENV_CONFIG)
+CONFIG = get_techanim_config(TECHANIM_ENV_CONFIG)
