@@ -38,6 +38,7 @@ ALL_USER_DIR_NAME = "users"
 FILE_NAMING = "{nodetype}_{description}_v{version}.{ext}"
 # see if there is a better way to do this
 NAMEING_REGEX = "(?P<nodetype>[a-zA-Z]+)_(?P<description>[a-zA-Z]+)_v(?P<ver>\d+)(?P<ext>\.[a-zA-Z0-9]+)$"
+COMPOUND_ATTR_REGEX = "(?P<description>[a-zA-Z]+)(?P<com_index>\[\d\])."
 PRESET_DIR_NAME = "preset_share"
 PRESET_EXT = "preset"
 PRESET_PUBLISH_NAME = "publish"
@@ -551,6 +552,24 @@ def save_preset_for_node(node, comment, description, user=None):
 # applying preset
 # =============================================================================
 
+
+def clear_compound(node, attr):
+    plug = "{}.{}".format(node, attr)
+    long_compound_attr = cmds.attributeName(plug, lf=False, l=True)
+    match = re.match(COMPOUND_ATTR_REGEX, long_compound_attr)
+    description = match.group("description")
+    com_index = match.group("com_index")
+    if match is None or not description or not com_index:
+        return
+    compound_attr = "{}.{}".format(node, description)
+    if cmds.getAttr(compound_attr, typ=True) == "TdataCompound":
+        attr_len = cmds.getAttr(compound_attr, s=True)
+        if attr_len > 1:
+            for ind in range(attr_len)[1:]:
+                shortened_attr = "{}[{}]".format(compound_attr, ind)
+                cmds.removeMultiInstance(shortened_attr, b=True)
+
+
 def apply_preset_file(filePath, node):
     """convenience function to apply a preset from a file to a node
 
@@ -593,6 +612,10 @@ def apply_preset(preset_info, node):
         try:
             if type(value) in [unicode, str]:
                 cmds.setAttr(plug, value, type="string")
+            # TODO find a better way to discern a compound attr
+            if "]." in plug:
+                clear_compound(node, attr)
+                cmds.setAttr(plug, value)
             else:
                 cmds.setAttr(plug, value)
         except RuntimeError:
