@@ -553,21 +553,36 @@ def save_preset_for_node(node, comment, description, user=None):
 # =============================================================================
 
 
-def clear_compound(node, attr):
+def clear_compound_attrs(node, attr, ordered_compound_info=None):
     plug = "{}.{}".format(node, attr)
     long_compound_attr = cmds.attributeName(plug, lf=False, l=True)
     match = re.match(COMPOUND_ATTR_REGEX, long_compound_attr)
+    if match is None:
+        return False
     description = match.group("description")
     com_index = match.group("com_index")
-    if match is None or not description or not com_index:
-        return
+    if not description or not com_index:
+        return False
     compound_attr = "{}.{}".format(node, description)
     if cmds.getAttr(compound_attr, typ=True) == "TdataCompound":
+        if ordered_compound_info and compound_attr in ordered_compound_info:
+            ordered_compound_info[compound_attr].append(plug)
+            return
+        ordered_compound_info[compound_attr] = []
         attr_len = cmds.getAttr(compound_attr, s=True)
         if attr_len > 1:
             for ind in range(attr_len)[1:]:
                 shortened_attr = "{}[{}]".format(compound_attr, ind)
                 cmds.removeMultiInstance(shortened_attr, b=True)
+
+    return compound_attr
+
+
+def apply_compound_attrs(ordered_compound_info, compound_values_info):
+    for k, attrs in ordered_compound_info.iteritems():
+        attrs.sort()
+        for a in attrs:
+            cmds.setAttr(a, compound_values_info[a])
 
 
 def apply_preset_file(filePath, node):
@@ -605,21 +620,32 @@ def apply_preset(preset_info, node):
         preset_info (dict): preset to be applied
         node (str): name of node
     """
-    unsettable = []
+    failed_connections = []
+    skipped_connections = []
+    ordered_compound_info = {}
+    compound_values_info = {}
     for attr, value in preset_info["attr_info"].iteritems():
         plug = "{}.{}".format(node, attr)
         # attr_type = cmds.getAttr(plug, typ=True)
+        if cmds.listConnections(plug, s=True, d=False):
+            skipped_connections.append(plug)
+            continue
         try:
             if type(value) in [unicode, str]:
                 cmds.setAttr(plug, value, type="string")
             # TODO find a better way to discern a compound attr
-            if "]." in plug:
-                clear_compound(node, attr)
-                cmds.setAttr(plug, value)
+            elif "]." in plug:
+                clear_compound_attrs(node,
+                                     attr,
+                                     ordered_compound_info=ordered_compound_info)
+                compound_values_info[plug] = value
             else:
                 cmds.setAttr(plug, value)
         except RuntimeError:
-            unsettable.append(plug)
+            failed_connections.append(plug)
             continue
 
-    return unsettable
+    if ordered_compound_info:
+        apply_compound_attrs(ordered_compound_info, compound_values_info)
+
+    return failed_connections, skipped_connections
