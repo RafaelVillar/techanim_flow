@@ -627,10 +627,10 @@ def apply_preset(preset_info, node):
     for attr, value in preset_info["attr_info"].iteritems():
         plug = "{}.{}".format(node, attr)
         # attr_type = cmds.getAttr(plug, typ=True)
-        if cmds.listConnections(plug, s=True, d=False):
-            skipped_connections.append(plug)
-            continue
         try:
+            if not cmds.objExists(plug) or cmds.listConnections(plug, s=True, d=False):
+                skipped_connections.append(plug)
+                continue
             if type(value) in [unicode, str]:
                 cmds.setAttr(plug, value, type="string")
             # TODO find a better way to discern a compound attr
