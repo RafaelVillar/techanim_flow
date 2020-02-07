@@ -554,6 +554,17 @@ def save_preset_for_node(node, comment, description, user=None):
 
 
 def clear_compound_attrs(node, attr, ordered_compound_info=None):
+    """This empties any existing compound attributes so that they can be readded
+    and the index reset to zero
+
+    Args:
+        node (TYPE): Description
+        attr (TYPE): Description
+        ordered_compound_info (None, optional): Description
+
+    Returns:
+        TYPE: Description
+    """
     plug = "{}.{}".format(node, attr)
     long_compound_attr = cmds.attributeName(plug, lf=False, l=True)
     match = re.match(COMPOUND_ATTR_REGEX, long_compound_attr)
@@ -579,10 +590,19 @@ def clear_compound_attrs(node, attr, ordered_compound_info=None):
 
 
 def apply_compound_attrs(ordered_compound_info, compound_values_info):
-    for k, attrs in ordered_compound_info.iteritems():
-        attrs.sort()
-        for a in attrs:
-            cmds.setAttr(a, compound_values_info[a])
+    """SPECIAL COMPOUND ATTR
+
+    Args:
+        ordered_compound_info (TYPE): Description
+        compound_values_info (TYPE): Description
+    """
+    # for k, attrs in ordered_compound_info.iteritems():
+    # for attrs in compound_values_info.keys():
+    attrs = compound_values_info.keys()
+    attrs.sort()
+    for a in attrs:
+        val = compound_values_info[a]
+        cmds.setAttr(a, val)
 
 
 def apply_preset_file(filePath, node):
