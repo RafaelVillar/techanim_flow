@@ -581,10 +581,16 @@ def clear_compound_attrs(node, attr, ordered_compound_info=None):
             return
         ordered_compound_info[compound_attr] = []
         attr_len = cmds.getAttr(compound_attr, s=True)
-        if attr_len > 1:
-            for ind in range(attr_len)[1:]:
-                shortened_attr = "{}[{}]".format(compound_attr, ind)
+        # if attr_len > 1:
+            # for ind in range(attr_len)[1:]:
+        for ind in range(attr_len):
+            shortened_attr = "{}[{}]".format(compound_attr, ind)
+            try:
                 cmds.removeMultiInstance(shortened_attr, b=True)
+            except Exception as e:
+                print(e)
+    else:
+        return False
 
     return compound_attr
 
@@ -651,6 +657,7 @@ def apply_preset(preset_info, node):
             if not cmds.objExists(plug) or cmds.listConnections(plug, s=True, d=False):
                 skipped_connections.append(plug)
                 continue
+            # clear_compound_attrs(node, attr, ordered_compound_info=ordered_compound_info)
             if type(value) in [unicode, str]:
                 cmds.setAttr(plug, value, type="string")
             # TODO find a better way to discern a compound attr
