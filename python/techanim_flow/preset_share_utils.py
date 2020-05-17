@@ -57,7 +57,7 @@ comment: {comment}
 {attr_info}
 
 """
-# used if non provided by config
+# used if none provided by config
 TEMP_DIR = os.path.join(tempfile.gettempdir(), PRESET_DIR_NAME)
 
 

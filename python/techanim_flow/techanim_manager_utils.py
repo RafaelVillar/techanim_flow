@@ -155,6 +155,8 @@ def get_temp_dir(root_dir, prefix="", suffix=""):
 
 
 def ensure_unique_cache_dir(cache_dir, suffix=""):
+    if not os.path.exists(cache_dir):
+        cache_dir = tempfile.mkdtemp()
     parent_dir = os.path.basename(os.path.abspath(os.path.join(cache_dir, os.pardir)))
     dir_name = os.path.basename(cache_dir)
     if dir_name == CACHE_DIR_NAME:
@@ -339,6 +341,7 @@ class TechAnim_Setup(object):
             str: should be good on any os
         """
         cache_dir = self.setup_config.get("cache_dir")
+
         suffix = self.setup_config["cache_dir_suffix"]
         unique_cache_dir = ensure_unique_cache_dir(cache_dir, suffix=suffix)
         if unique_cache_dir != cache_dir:

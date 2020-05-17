@@ -605,11 +605,11 @@ def create_rigid_nodes(rigid_nodes, nucleus_node):
     # create all the connections with the collected info
     for rigid_layers in chunks(connection_order[1:], sim_index + 2):
         for index, node in enumerate(rigid_layers):
-            source_plug = "{}Shape.outMesh".format(node)
+            source_plug = "{}.outMesh".format(cmds.listRelatives(node, s=True)[0])
             next_val = index + 1
             if next_val > len(rigid_layers) - 1:
                 break
-            dest_plug = "{}Shape.inMesh".format(rigid_layers[next_val])
+            dest_plug = "{}.inMesh".format(cmds.listRelatives(rigid_layers[next_val], s=True)[0])
             cmds.connectAttr(source_plug, dest_plug, f=True)
 
 
