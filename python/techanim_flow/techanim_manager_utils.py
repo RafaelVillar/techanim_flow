@@ -7,6 +7,7 @@ from __future__ import unicode_literals
 
 # Standard
 import os
+import re
 import ast
 import copy
 import pprint
@@ -465,9 +466,11 @@ class TechAnim_Setup(object):
             dict: {node: [list of all children]}
         """
         techanim_nodes_info = {}
+        output_suffix = self.setup_config["output_layer_name"]
         for layer in desired_layers:
             children = cmds.listRelatives(layer, ad=True, type="transform")
-            children = [x for x in children if not x.endswith("Base")]
+            children = [x for x in children
+                        if not re.match(".+{}Base*".format(output_suffix), x)]
             techanim_nodes_info[layer] = children
         return techanim_nodes_info
 
