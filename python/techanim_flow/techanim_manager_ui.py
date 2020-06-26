@@ -341,6 +341,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
         increment_w = [0]
         increment_h = [0]
         self.views_widget.size().width()
+        print(self.techanim_view_widgets)
         approximate_w = int(self.views_widget.size().width() / len(self.techanim_view_widgets)) - 11
         for layer_layout, layer_view in self.techanim_view_widgets:
 

@@ -6,6 +6,11 @@ Attributes:
     TECHANIM_CONFIG_NAME (str): json/config file name
     TECHANIM_ENV_CONFIG (str): env var name
 """
+from __future__ import division
+from __future__ import generators
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import unicode_literals
 
 # python
 import os
@@ -36,9 +41,11 @@ def get_techanim_config(env_name):
     Returns:
         dict: the config for the creator and setup manager
     """
-    dir_name = os.path.dirname(os.path.realpath("__file__"))
+    dir_name = os.path.dirname(os.path.realpath(__file__))
     default_config_path = os.path.join(dir_name, TECHANIM_CONFIG_NAME)
     techanim_config_path = os.environ.get(env_name, default_config_path)
+    if not os.path.exists(techanim_config_path):
+        techanim_config_path = default_config_path
     with open(techanim_config_path, 'r') as f:
         config = json.load(f)
     session_cache_dir = os.environ.get(TECHANIM_CACHE_SESSION, config["cache_dir"])

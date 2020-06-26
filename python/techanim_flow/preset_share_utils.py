@@ -26,14 +26,17 @@ import ast
 import glob
 import json
 import getpass
+import tempfile
 import datetime
 from functools import wraps
 
+# dcc
 import maya.cmds as cmds
 
 # =============================================================================
 # Constants
 # =============================================================================
+
 ALL_USER_DIR_NAME = "users"
 FILE_NAMING = "{nodetype}_{description}_v{version}.{ext}"
 # see if there is a better way to do this
@@ -54,6 +57,8 @@ comment: {comment}
 {attr_info}
 
 """
+# used if none provided by config
+TEMP_DIR = os.path.join(tempfile.gettempdir(), PRESET_DIR_NAME)
 
 
 # =============================================================================
@@ -296,12 +301,10 @@ def get_base_dir():
         IOError: if the env var is not set, we cannot opperate at all
     """
     dir_path = os.environ.get(PRESET_SHARE_ENV_NAME)
+    if not os.path.exists(dir_path):
+        dir_path = TEMP_DIR
     if not dir_path:
         raise IOError("No directory set in environ for preset share!")
-    try:
-        os.makedirs(dir_path)
-    except Exception:
-        pass
 
     potential_path = os.path.join(dir_path, PRESET_DIR_NAME)
     if (os.path.basename(dir_path) != PRESET_DIR_NAME and not
@@ -309,7 +312,7 @@ def get_base_dir():
         os.makedirs(potential_path)
         dir_path = potential_path
     root_dir = os.path.abspath(dir_path)
-
+    print(root_dir)
     return root_dir
 
 
