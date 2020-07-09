@@ -793,7 +793,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         """
         association_dict = self.associate_control.association_dict
         techanim_info = {}
-        techanim_info["render_sim"] = copy.deepcopy(association_dict)
+        techanim_info[techanim_creator_utils.RENDER_SIM_KEY] = copy.deepcopy(association_dict)
         if not techanim_info:
             return
         rigid_nodes = ast.literal_eval(self.passive_edit.text() or "[]")
@@ -805,14 +805,13 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
             "postScriptPath": self.post_script_edit.text(),
             "nClothMapsPaths": nClothMapsPaths
         }
-        techanim_info = ast.literal_eval(self.user_techanim_info_edit.text()
-                                         or "{}")
+        user_techanim_info = self.user_techanim_info_edit.text() or "{}"
+        user_techanim_info = ast.literal_eval(user_techanim_info)
         add_key = techanim_creator_utils.ADDITIONAL_RENDER_OUTPUT_KEY
-        addition_render_info = techanim_info.get(add_key, {})
-        techanim_info["rigid_nodes"] = rigid_nodes
+        addition_render_info = user_techanim_info.get(add_key, {})
+        techanim_info[techanim_creator_utils.RIGID_KEY] = rigid_nodes
         techanim_info["setup_options"] = setup_options
         techanim_info[add_key] = addition_render_info
-        print(techanim_info)
         techanim_creator_utils.create_setup(techanim_info,
                                             setup_options=setup_options)
 

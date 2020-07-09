@@ -559,11 +559,10 @@ def create_input_layer(techanim_info, falloffMode=1, exclusiveBind=1, **kwargs):
 
 
 def create_rigid_nodes(rigid_nodes, nucleus_node):
-    """create the connections with the passive geometry and the sim layers
+    """create the connections with the passive geometry and the sim layers.
     This is treated differently due to the rigid/passive geo is not wrapped
     but directly connected. And it is not duplicated for every layer, just up
-    to the sim layer. It probably does not need to be connected to the input
-    layer, but for consistency sake it is.
+    to the sim layer.
 
     Args:
         rigid_nodes (list): of rigid/passive nodes to connect to nucleus
@@ -798,7 +797,7 @@ def create_layer_connections(techanim_info):
                              force=True)
 
 
-def create_ncloth_setup(rigid_nodes):
+def create_ncloth_setup():
     """create the ncloth setup on the sim layer, organize and rename the
     generated nodes. TODO: Does maya not have python commands for this?
 
@@ -846,9 +845,7 @@ def create_ncloth_setup(rigid_nodes):
     nucleus_node = cmds.rename(nucleus_node, CONFIG["nucleus_name"])
     cmds.parent(nucleus_node, CONFIG["sim_layer"])
 
-    create_rigid_nodes(rigid_nodes, nucleus_node)
-
-    return nCloth_shapes
+    return nucleus_node
 
 
 def activate_ncloth_maps():
@@ -890,7 +887,8 @@ def create_setup(techanim_info, setup_options=None):
 
     create_output_layer(techanim_info[RENDER_SIM_KEY], **setup_options)
     create_layer_connections(techanim_info[RENDER_SIM_KEY])
-    create_ncloth_setup(rigid_nodes)
+    nucleus_node = create_ncloth_setup()
+    create_rigid_nodes(rigid_nodes, nucleus_node)
 
     input_info = {}
     for render_geo in techanim_info[RENDER_SIM_KEY].keys():
