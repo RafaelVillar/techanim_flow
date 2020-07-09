@@ -792,10 +792,9 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
             n/a: Zilch, nada, 何も
         """
         association_dict = self.associate_control.association_dict
-        tmp = {}
-        tmp["render_sim"] = copy.deepcopy(association_dict)
-        render_sim_association_dict = tmp
-        if not tmp:
+        techanim_info = {}
+        techanim_info["render_sim"] = copy.deepcopy(association_dict)
+        if not techanim_info:
             return
         rigid_nodes = ast.literal_eval(self.passive_edit.text() or "[]")
         nClothMapsPaths = self.ncloth_maps_edit.text() or "[]"
@@ -806,10 +805,15 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
             "postScriptPath": self.post_script_edit.text(),
             "nClothMapsPaths": nClothMapsPaths
         }
-        render_sim_association_dict["rigid_nodes"] = rigid_nodes
-        render_sim_association_dict["setup_options"] = setup_options
-        print(render_sim_association_dict)
-        techanim_creator_utils.create_setup(render_sim_association_dict,
+        techanim_info = ast.literal_eval(self.user_techanim_info_edit.text()
+                                         or "{}")
+        add_key = techanim_creator_utils.ADDITIONAL_RENDER_OUTPUT_KEY
+        addition_render_info = techanim_info.get(add_key, {})
+        techanim_info["rigid_nodes"] = rigid_nodes
+        techanim_info["setup_options"] = setup_options
+        techanim_info[add_key] = addition_render_info
+        print(techanim_info)
+        techanim_creator_utils.create_setup(techanim_info,
                                             setup_options=setup_options)
 
     def add_driven_render_nodes(self):

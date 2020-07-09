@@ -27,6 +27,7 @@ import ast
 import imp
 import copy
 import json
+import pprint
 import traceback
 from functools import wraps
 
@@ -47,6 +48,7 @@ RIGID_KEY = "rigid_nodes"
 RENDER_SIM_KEY = "render_sim"
 RENDER_INPUT_KEY = "render_input"
 RENDER_OUTPUT_KEY = "render_output"
+ADDITIONAL_RENDER_OUTPUT_KEY = "additional_render_output"
 LOCK_ATTRS = ["tx", "ty", "tz", "rx", "ry", "rz", "sx", "sy", "sz"]
 CONFIG_ATTR = "techanim_config"
 
@@ -583,6 +585,7 @@ def create_rigid_nodes(rigid_nodes, nucleus_node):
             rigid_node = cmds.duplicate(rNode,
                                         n=removeNS(rigid_node),
                                         un=False)[0]
+            freeze_verticies(rigid_node)
             # adding the source geo to start the connections
             if rNode not in connection_order:
                 connection_order.append(rNode)
@@ -655,6 +658,7 @@ def populate_connection_layer(techanim_info,
                                            n=removeNS(input_driveR_node),
                                            un=False,
                                            ic=False)[0]
+        freeze_verticies(input_driveR_node)
         cmds.parent(input_driveR_node, groupA)
         locknHide(input_driveR_node)
 
@@ -663,6 +667,7 @@ def populate_connection_layer(techanim_info,
                                            n=removeNS(input_driveN_node),
                                            un=False,
                                            ic=False)[0]
+        freeze_verticies(input_driveN_node)
         cmds.parent(input_driveN_node, groupB)
         locknHide(input_driveN_node)
         if wrap:
@@ -672,6 +677,16 @@ def populate_connection_layer(techanim_info,
                                        falloffMode=falloffMode)
             cmds.rename(wrapDeformer, "{}_wrap".format(input_driveR_node))
             cmds.select(cl=True)
+
+
+def freeze_verticies(nodes):
+    """Applying a cluster to nodes freezes cv's on a shape
+
+    Args:
+        nodes (list, str): nodes to apply cluster to
+    """
+    cluster = cmds.cluster(nodes)
+    cmds.delete(cluster)
 
 
 def populate_layer(techanim_info, group, suffix):
@@ -688,10 +703,43 @@ def populate_layer(techanim_info, group, suffix):
                               n=removeNS(node),
                               un=False,
                               ic=False)[0]
+        freeze_verticies(node)
         cmds.delete(node, ch=True)
         cmds.parent(node, group)
         cmds.setAttr("{}.v".format(node), 0)
         locknHide(node)
+
+
+def update_additional_driven_info(added_driven_nodes_info):
+    """Add render geo to the existing techanim setup with provided info
+
+    Args:
+        added_driven_nodes_info (dict): driver_geo: [driven_render_geo]
+    """
+    techanim_node_info = get_info(CONFIG["techanim_root"],
+                                  CONFIG["nodes_attr"])
+    add_info = techanim_node_info.get(ADDITIONAL_RENDER_OUTPUT_KEY, {})
+
+    for driver, driven_node_options in added_driven_nodes_info.iteritems():
+        added = []
+        if driver in add_info:
+            for driven in driven_node_options:
+                for index, existing_driven in enumerate(add_info[driver]):
+                    if driven[0] == existing_driven[0]:
+                        add_info[driver][index] = driven
+                        added.append(driven[0])
+
+            for driven in driven_node_options:
+                if driven[0] not in added:
+                    add_info[driver].append(driven)
+        else:
+            add_info[driver] = driven_node_options
+
+    techanim_node_info[ADDITIONAL_RENDER_OUTPUT_KEY] = add_info
+    # set the info on the techanim node
+    set_info(CONFIG["techanim_root"],
+             CONFIG["nodes_attr"],
+             techanim_node_info)
 
 
 @create_chunk
@@ -705,12 +753,15 @@ def add_driven_render_nodes(driver, driven, exclusiveBind=1, falloffMode=1):
         exclusiveBind (int, optional): wrap settings
         falloffMode (int, optional): wrap settings
     """
+    driven_node_options = []
     for render_node in driven:
+        driven_node_options.append([render_node, exclusiveBind, falloffMode])
         dup_node_name = "{}{}".format(render_node, CONFIG["output_suffix"])
         dup_node = cmds.duplicate(render_node,
                                   n=removeNS(dup_node_name),
                                   un=False)[0]
         cmds.parent(dup_node, CONFIG["render_output"])
+        freeze_verticies(dup_node)
         cmds.delete(dup_node, ch=True)
         locknHide(dup_node)
 
@@ -721,6 +772,10 @@ def add_driven_render_nodes(driver, driven, exclusiveBind=1, falloffMode=1):
                                    falloffMode=falloffMode)
         cmds.rename(wrapDeformer, "{}_wrap".format(dup_node))
         cmds.select(cl=True)
+    added_driven_nodes_info = {}
+    added_driven_nodes_info[driver] = driven_node_options
+    update_additional_driven_info(added_driven_nodes_info)
+    return added_driven_nodes_info
 
 
 def create_layer_connections(techanim_info):
@@ -839,16 +894,26 @@ def create_setup(techanim_info, setup_options=None):
 
     input_info = {}
     for render_geo in techanim_info[RENDER_SIM_KEY].keys():
-        input_info[render_geo] = "{}{}".format(render_geo,
+        input_info[render_geo] = "{}{}".format(removeNS(render_geo),
                                                CONFIG["input_suffix"])
     techanim_info[RENDER_INPUT_KEY] = input_info
+    pprint.pprint(techanim_info)
+    add_info = techanim_info.pop(ADDITIONAL_RENDER_OUTPUT_KEY, {})
 
-    print(techanim_info)
     set_info(CONFIG["techanim_root"],
              CONFIG["nodes_attr"],
              techanim_info)
 
     set_info(CONFIG["techanim_root"], CONFIG_ATTR, CONFIG)
+
+    # support for additional geo driven by wraps
+    if add_info:
+        for driver, driven_node_options in add_info.iteritems():
+            for driven in driven_node_options:
+                add_driven_render_nodes(driver,
+                                        [driven[0]],
+                                        exclusiveBind=driven[1],
+                                        falloffMode=driven[2])
 
     cmds.select(cl=True)
     cmds.select(CONFIG["techanim_root"])
