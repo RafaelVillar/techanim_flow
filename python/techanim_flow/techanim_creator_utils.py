@@ -421,6 +421,36 @@ def create_chunk(func):
     return open_chunk
 
 
+def viewport_off(func):
+    """
+    Shoutout to Mgear
+    Decorator - Turn off Maya display while func is running.
+
+    if func will fail, the error will be raised after.
+
+    type: (function) -> function
+
+    """
+    @wraps(func)
+    def wrap(*args, **kwargs):
+        # type: (*str, **str) -> None
+
+        # Turn $gMainPane Off:
+        gMainPane = mel.eval('global string $gMainPane; $temp = $gMainPane;')
+        cmds.paneLayout(gMainPane, edit=True, manage=False)
+
+        try:
+            return func(*args, **kwargs)
+
+        except Exception as e:
+            raise e
+
+        finally:
+            cmds.paneLayout(gMainPane, edit=True, manage=True)
+
+    return wrap
+
+
 def locknHide(node, attrs=LOCK_ATTRS):
     """Convenience functions to lock and hide attrs on the provided node
 
@@ -558,7 +588,97 @@ def create_input_layer(techanim_info, falloffMode=1, exclusiveBind=1, **kwargs):
                               exclusiveBind=exclusiveBind)
 
 
-def create_rigid_nodes(rigid_nodes, nucleus_node):
+def create_rigid_nodes_wrap(rigid_nodes_dict,
+                            nucleus_node,
+                            falloffMode=1,
+                            exclusiveBind=1,
+                            **kwargs):
+    """Wrap rigid/passive geo to cages provided by the user
+
+    Args:
+        rigid_nodes_dict (dict): render: cage nodes
+        nucleus_node (str): name of nuclues node
+        falloffMode (int, optional): wrap options
+        exclusiveBind (int, optional): wrap options
+        **kwargs: catch all
+    """
+    direct_connect_dict = {}
+    hide_all_nodes = []
+    for driver_render, driven_cage in rigid_nodes_dict.iteritems():
+        rigid_driver = "{}_{}".format(removeNS(driver_render),
+                                      CONFIG["input_layer_name"])
+        rigid_driver = cmds.duplicate(driver_render,
+                                      n=rigid_driver,
+                                      un=False)[0]
+        freeze_verticies(rigid_driver)
+        cmds.parent(rigid_driver, CONFIG["rigid_input"])
+        locknHide(rigid_driver)
+        hide_all_nodes.append(rigid_driver)
+        # driven --------------------------------------------------------------
+        driven_node = "{}_{}".format(removeNS(driven_cage),
+                                     CONFIG["input_layer_name"])
+        driven_node = cmds.duplicate(driven_cage,
+                                     n=driven_node,
+                                     un=False)[0]
+        direct_connect_dict[driver_render] = [driven_node]
+        freeze_verticies(driven_node)
+        cmds.parent(driven_node, CONFIG["input_layer_name"])
+        locknHide(driven_node)
+
+        cmds.select(cl=True)
+        hide_all_nodes.append(driven_node)
+        # wraps ---------------------------------------------------------------
+        cmds.setAttr("{}.v".format(rigid_driver), 1)
+        cmds.setAttr("{}.v".format(driven_node), 1)
+        wrapDeformer = create_wrap(rigid_driver,
+                                   driven_node,
+                                   exclusiveBind=exclusiveBind,
+                                   falloffMode=falloffMode)
+        cmds.rename(wrapDeformer, "{}_wrap".format(rigid_driver))
+        cmds.select(cl=True)
+
+    # duplicate and populate the layers of the techanim setup
+    sim_index = CONFIG["grouping_order"].index(CONFIG["sim_layer"])
+    for driver_render, driven_cage in rigid_nodes_dict.iteritems():
+        for layer in CONFIG["grouping_order"][1:sim_index + 1]:
+            driven_node = "{}_{}".format(removeNS(driven_cage), layer)
+            if layer == CONFIG["sim_layer"]:
+                driven_node = "{}_{}{}{}".format(driven_node,
+                                                 layer,
+                                                 CONFIG["rigid_suffix"],
+                                                 CONFIG["nCloth_output_suffix"])
+            driven_node = cmds.duplicate(driven_cage,
+                                         n=driven_node,
+                                         un=False)[0]
+            freeze_verticies(driven_node)
+            cmds.parent(driven_node, layer)
+            locknHide(driven_node)
+            # on sim layer, make it a rigid object
+            if layer == CONFIG["sim_layer"]:
+                cmds.select(cl=True)
+                cmds.select(driven_node, nucleus_node)
+                rigid_shape = mel.eval("makeCollideNCloth;")[0]
+                rigid_trans = cmds.listRelatives(rigid_shape, p=True)[0]
+                rigid_name = driven_node.replace(CONFIG["nCloth_output_suffix"],
+                                                "")
+                rigid_trans = cmds.rename(rigid_trans, rigid_name)
+                cmds.parent(rigid_trans, layer)
+                locknHide(rigid_trans)
+
+            hide_all_nodes.append(driven_node)
+            # direct connection -----------------------------------------------
+            last_node = direct_connect_dict[driver_render][-1]
+            source_plug = "{}.outMesh".format(cmds.listRelatives(last_node,
+                                                                 s=True)[0])
+            dest_plug = "{}.inMesh".format(cmds.listRelatives(driven_node,
+                                                              s=True)[0])
+            cmds.connectAttr(source_plug, dest_plug, f=True)
+            direct_connect_dict[driver_render].append(driven_node)\
+    # hide all recently created nodes
+    [cmds.setAttr("{}.v".format(x), 0) for x in list(set(hide_all_nodes))]
+
+
+def create_rigid_nodes_legacy(rigid_nodes, nucleus_node):
     """create the connections with the passive geometry and the sim layers.
     This is treated differently due to the rigid/passive geo is not wrapped
     but directly connected. And it is not duplicated for every layer, just up
@@ -599,7 +719,6 @@ def create_rigid_nodes(rigid_nodes, nucleus_node):
                 rigid_trans = cmds.listRelatives(rigid_shape, p=True)[0]
                 rigid_name = rigid_node.replace(CONFIG["nCloth_output_suffix"],
                                                 "")
-                # rigid_name = "{}{}".format(rigid_name, CONFIG["rigid_suffix"])
                 rigid_trans = cmds.rename(rigid_trans, rigid_name)
                 cmds.parent(rigid_trans, layer)
                 locknHide(rigid_trans)
@@ -864,6 +983,17 @@ def activate_ncloth_maps():
     cmds.currentTime(1)
 
 
+def set_default_shader():
+    """Set default shader on techanim setup
+    """
+    cmds.select(cl=True)
+    cmds.select(cmds.listRelatives(CONFIG["techanim_root"],
+                                   ad=True,
+                                   type="mesh"))
+    mel.eval('createAndAssignShader lambert "";')
+
+
+@viewport_off
 @create_chunk
 def create_setup(techanim_info, setup_options=None):
     """create the entire default setup
@@ -875,10 +1005,9 @@ def create_setup(techanim_info, setup_options=None):
         setup_options = DEFAULT_SETUP_OPTIONS
     techanim_info = copy.deepcopy(techanim_info)
     create_techanim_grouping()
-    rigid_nodes = techanim_info.get(RIGID_KEY, [])
+    rigid_nodes = techanim_info.get(RIGID_KEY, {})
 
     create_input_layer(techanim_info[RENDER_SIM_KEY], **setup_options)
-
     sim_layers = CONFIG["grouping_order"][1:-1]
     for layer in sim_layers:
         group = "{}_{}".format(CONFIG["sim_base_name"], layer)
@@ -888,7 +1017,7 @@ def create_setup(techanim_info, setup_options=None):
     create_output_layer(techanim_info[RENDER_SIM_KEY], **setup_options)
     create_layer_connections(techanim_info[RENDER_SIM_KEY])
     nucleus_node = create_ncloth_setup()
-    create_rigid_nodes(rigid_nodes, nucleus_node)
+    create_rigid_nodes_wrap(rigid_nodes, nucleus_node, **setup_options)
 
     input_info = {}
     for render_geo in techanim_info[RENDER_SIM_KEY].keys():
@@ -913,9 +1042,7 @@ def create_setup(techanim_info, setup_options=None):
                                         exclusiveBind=driven[1],
                                         falloffMode=driven[2])
 
-    cmds.select(cl=True)
-    cmds.select(CONFIG["techanim_root"])
-    mel.eval('createAndAssignShader lambert "";')
+    set_default_shader()
     activate_ncloth_maps()
     # sets all the ncloth maps to default so the arrays are accurate
     # for importing/exporting
@@ -927,3 +1054,7 @@ def create_setup(techanim_info, setup_options=None):
     postScriptPath = setup_options.get("postScriptPath", None)
     if postScriptPath and os.path.exists(postScriptPath):
         run_post_script(postScriptPath)
+
+
+# compatibility ---------------------------------------------------------------
+create_rigid_nodes = create_rigid_nodes_legacy

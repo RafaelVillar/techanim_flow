@@ -48,6 +48,13 @@ TECH_PYTHON_PATH = os.path.abspath(os.path.join(DIR_PATH, os.pardir))
 ROOT_MODULE_PATH = os.path.abspath(os.path.join(TECH_PYTHON_PATH, os.pardir))
 HOWTO_FILEPATH_DICT = CONFIG.get("HOWTO_FILEPATH_DICT", {})
 
+RIGID_KEY = techanim_creator_utils.RIGID_KEY
+RENDER_SIM_KEY = techanim_creator_utils.RENDER_SIM_KEY
+RENDER_INPUT_KEY = techanim_creator_utils.RENDER_INPUT_KEY
+RENDER_OUTPUT_KEY = techanim_creator_utils.RENDER_OUTPUT_KEY
+ADDITIONAL_RENDER_OUTPUT_KEY = techanim_creator_utils.ADDITIONAL_RENDER_OUTPUT_KEY
+
+
 WRAP_FALLOW_SETTINGS_DICT = {
     "surface": 0,
     "volume": 1
@@ -57,8 +64,6 @@ WRAP_FALLOW_SETTINGS_DICT = {
 for _key, _path in HOWTO_FILEPATH_DICT.iteritems():
     HOWTO_FILEPATH_DICT[_key] = os.path.join(ROOT_MODULE_PATH,
                                              os.path.normpath(_path))
-
-
 
 
 def show(*args):
@@ -222,6 +227,7 @@ class AssociateSelectionControl(QtCore.QObject):
         if already_added:
             msg = "Skipping duplicates! {}".format(already_added)
             print(self.tr(msg))
+        self.is_list_complete()
 
     def remove_associated_items(self, items):
         """remove any items from the controllers association_dict
@@ -252,6 +258,7 @@ class AssociateSelectionControl(QtCore.QObject):
         self.viewA.selectionModel().clear()
         self.viewB.selectionModel().clear()
         self.slant_entries()
+        self.is_list_complete()
 
     def remove_items(self, model, items):
         """Remove a list of items from the provided model and provided list
@@ -346,6 +353,11 @@ class AssociateSelectionControl(QtCore.QObject):
             index_text = modelIndex.data(0)
             if index_text not in self.association_dict:
                 missing.append(index_text)
+        for index in xrange(self.modelB.rowCount()):
+            modelIndex = self.modelB.index(index, 0)
+            index_text = modelIndex.data(0)
+            if index_text not in self.association_dict.values():
+                missing.append(index_text)
         return missing
 
     def check_create_entry(self, modelIndex):
@@ -396,14 +408,19 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         self.setLayout(self.mainLayout)
 
         self.mainLayout.addWidget(self.load_techanim_info_layout())
-        self.mainLayout.addLayout(self.geo_selection_layout())
-        self.mainLayout.addWidget(self.nCloth_settings_widget())
+        self.mainLayout.addLayout(self.render_geo_selection_layout())
+        self.mainLayout.addLayout(self.passive_geo_selection_layout())
+        # self.mainLayout.addWidget(self.nCloth_settings_widget())
         self.mainLayout.addWidget(self.wrap_settings_layout())
 
         self.mainLayout.addWidget(self.create_setup_options_widget())
         self.mainLayout.addWidget(self.utils_layout())
-        self.associate_control = AssociateSelectionControl(self.render_geo_view,
-                                                           self.sim_geo_view)
+        self.render_associate_control = AssociateSelectionControl(self.render_geo_view,
+                                                                  self.sim_geo_view)
+        self.passive_associate_control = AssociateSelectionControl(self.passive_render_geo_view,
+                                                                   self.passive_sim_geo_view)
+        self.filter_associate_controls = [self.render_associate_control,
+                                          self.passive_associate_control]
         # setup options -------------------------------------------------------
         self.setup_options = {
             "falloffMode": self.wrap_falloff_cb,
@@ -417,6 +434,8 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         self.create_signal_connections()
         self.render_geo_view.installEventFilter(self)
         self.sim_geo_view.installEventFilter(self)
+        self.passive_render_geo_view.installEventFilter(self)
+        self.passive_sim_geo_view.installEventFilter(self)
         self.add_driven_nodes_btn.installEventFilter(self)
 
         # howto layer ---------------------------------------------------------
@@ -428,44 +447,78 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
     def create_signal_connections(self):
         """Create signals connections for the UI
         """
-        as_co = self.associate_control
-        # connections ---------------------------------------------------------
+        render_as_co = self.render_associate_control
+        passive_render_as_co = self.passive_associate_control
         self.user_techanim_info_button.clicked.connect(self.load_user_techanim_info)
-        as_co.viewA.clicked.connect(self.select_from_list)
-        as_co.viewB.clicked.connect(self.select_from_list)
+        # render associations control -----------------------------------------
+        render_as_co.viewA.clicked.connect(self.select_from_list)
+        render_as_co.viewB.clicked.connect(self.select_from_list)
 
-        as_co.modelA.rowsInserted.connect(self.update_render_label)
-        as_co.modelA.rowsRemoved.connect(self.update_render_label)
-        as_co.modelA.rowsInserted.connect(as_co.slant_entries)
-        as_co.modelA.rowsRemoved.connect(as_co.slant_entries)
+        render_as_co.modelA.rowsInserted.connect(self.update_render_label)
+        render_as_co.modelA.rowsRemoved.connect(self.update_render_label)
+        render_as_co.modelA.rowsInserted.connect(render_as_co.slant_entries)
+        render_as_co.modelA.rowsRemoved.connect(render_as_co.slant_entries)
 
-        as_co.modelB.rowsInserted.connect(self.update_geo_label)
-        as_co.modelB.rowsRemoved.connect(self.update_geo_label)
-        as_co.modelB.rowsInserted.connect(as_co.slant_entries)
-        as_co.modelB.rowsRemoved.connect(as_co.slant_entries)
+        render_as_co.modelB.rowsInserted.connect(self.update_geo_label)
+        render_as_co.modelB.rowsRemoved.connect(self.update_geo_label)
+        render_as_co.modelB.rowsInserted.connect(render_as_co.slant_entries)
+        render_as_co.modelB.rowsRemoved.connect(render_as_co.slant_entries)
 
-        as_co.paired_created.connect(as_co.slant_entries)
+        render_as_co.paired_created.connect(render_as_co.slant_entries)
 
         render_model = self.render_geo_view.model()
         sim_model = self.sim_geo_view.model()
         self.render_geo_add_btn.clicked.connect(partial(self.add_selection,
-                                                        as_co,
+                                                        render_as_co,
                                                         render_model))
 
-        remove_sel = as_co.remove_selected
+        remove_sel = render_as_co.remove_selected
         self.render_geo_remove_btn.clicked.connect(partial(remove_sel,
                                                            self.render_geo_view))
 
         self.sim_geo_add_btn.clicked.connect(partial(self.add_selection,
-                                                     as_co,
+                                                     render_as_co,
                                                      sim_model))
 
         self.sim_geo_remove_btn.clicked.connect(partial(remove_sel,
                                                         self.sim_geo_view))
 
-        self.add_passive_btn.clicked.connect(self.add_passive_geo)
+        render_as_co.all_pairs_made.connect(self.enable_create_button)
+        passive_render_as_co.all_pairs_made.connect(self.enable_create_button)
+        # passive associations control ----------------------------------------
+        passive_render_as_co.viewA.clicked.connect(self.select_from_list)
+        passive_render_as_co.viewB.clicked.connect(self.select_from_list)
 
-        as_co.all_pairs_made.connect(self.create_btn.setEnabled)
+        passive_render_as_co.modelA.rowsInserted.connect(self.update_passive_render_label)
+        passive_render_as_co.modelA.rowsRemoved.connect(self.update_passive_render_label)
+        passive_render_as_co.modelA.rowsInserted.connect(passive_render_as_co.slant_entries)
+        passive_render_as_co.modelA.rowsRemoved.connect(passive_render_as_co.slant_entries)
+
+        passive_render_as_co.modelB.rowsInserted.connect(self.update_passive_geo_label)
+        passive_render_as_co.modelB.rowsRemoved.connect(self.update_passive_geo_label)
+        passive_render_as_co.modelB.rowsInserted.connect(passive_render_as_co.slant_entries)
+        passive_render_as_co.modelB.rowsRemoved.connect(passive_render_as_co.slant_entries)
+
+        passive_render_as_co.paired_created.connect(passive_render_as_co.slant_entries)
+
+        passive_render_model = self.passive_render_geo_view.model()
+        passive_sim_model = self.passive_sim_geo_view.model()
+        self.passive_render_geo_add_btn.clicked.connect(partial(self.add_selection,
+                                                        passive_render_as_co,
+                                                        passive_render_model))
+
+        passive_remove_sel = passive_render_as_co.remove_selected
+        self.passive_render_geo_remove_btn.clicked.connect(partial(passive_remove_sel,
+                                                                   self.passive_render_geo_view))
+
+        self.passive_sim_geo_add_btn.clicked.connect(partial(self.add_selection,
+                                                             passive_render_as_co,
+                                                             passive_sim_model))
+
+        self.passive_sim_geo_remove_btn.clicked.connect(partial(passive_remove_sel,
+                                                                self.passive_sim_geo_view))
+
+       #  --------------------------------------------------------------------
         self.ncloth_maps_button.clicked.connect(self.load_files_dialog)
         self.post_script_button.clicked.connect(self.post_script_dialog)
         self.create_btn.clicked.connect(self.create_setup)
@@ -512,15 +565,27 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         if not techanim_info:
             return
 
-        as_co = self.associate_control
-        as_co.association_dict = techanim_info["render_sim"]
+        render_as_co = self.render_associate_control
+        render_as_co.association_dict = techanim_info[RENDER_SIM_KEY]
         render_model = self.render_geo_view.model()
         sim_model = self.sim_geo_view.model()
         render_model.clear()
         sim_model.clear()
-        as_co.add_items(render_model, techanim_info["render_sim"].keys())
-        as_co.add_items(sim_model, techanim_info["render_sim"].values())
-        self.passive_edit.setText(str(techanim_info["rigid_nodes"]))
+        render_as_co.add_items(render_model,
+                               techanim_info[RENDER_SIM_KEY].keys())
+        render_as_co.add_items(sim_model,
+                               techanim_info[RENDER_SIM_KEY].values())
+        # passive control ----------------------------------------------------
+        passive_render_as_co = self.render_associate_control
+        passive_render_as_co.association_dict = techanim_info[RENDER_SIM_KEY]
+        passive_render_model = self.render_geo_view.model()
+        passive_sim_model = self.sim_geo_view.model()
+        passive_render_model.clear()
+        passive_sim_model.clear()
+        passive_render_as_co.add_items(passive_render_model,
+                                       techanim_info[RIGID_KEY].keys())
+        passive_render_as_co.add_items(passive_sim_model,
+                                       techanim_info[RIGID_KEY].values())
 
         setup_options = techanim_info.get("setup_options", {})
         if setup_options:
@@ -532,7 +597,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
                 elif ui_object_type == QtWidgets.QLineEdit:
                     ui_object.setText(str(value))
 
-        as_co.is_list_complete()
+        render_as_co.is_list_complete()
 
     def default_maps_on_selected(self):
         techanim_creator_utils.default_maps_selected()
@@ -554,7 +619,20 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
             model (TYPE): Description
         """
         items = self.get_selected()
-        control.add_items(model, items)
+
+        filtered_items = []
+        skipped_items = []
+        for other_control in self.filter_associate_controls:
+            if control == other_control:
+                continue
+            (safe_to_add,
+             already_added) = other_control.filter_dupicates(items)
+            filtered_items.extend(safe_to_add)
+            skipped_items.extend(already_added)
+        control.add_items(model, list(set(filtered_items)))
+        if skipped_items:
+            msg = "Skipping duplicates! {}".format(skipped_items)
+            cmds.warning(msg)
 
     def add_passive_geo(self, items=None):
         """Add passive geo to the UI for rigid objects in nCloth
@@ -565,7 +643,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         if not items:
             items = self.get_selected()
         (safe_to_add,
-         already_added) = self.associate_control.filter_dupicates(items)
+         already_added) = self.render_associate_control.filter_dupicates(items)
         if already_added:
             msg = "Skipping duplicates! {}".format(already_added)
             print(msg)
@@ -599,7 +677,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         Args:
             modelIndex (QtGui.modelIndex): to query the number of children
         """
-        model = self.associate_control.modelA
+        model = self.render_associate_control.modelA
         self.render_label.setText("Render Geo ({})".format(model.rowCount()))
 
     def update_geo_label(self, modelIndex):
@@ -608,8 +686,37 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         Args:
             modelIndex (QtGui.modelIndex): to query the number of children
         """
-        model = self.associate_control.modelB
+        model = self.render_associate_control.modelB
         self.sim_label.setText("Sim Geo ({})".format(model.rowCount()))
+
+    def update_passive_render_label(self, modelIndex):
+        """Update the label to display the number of added nodes
+
+        Args:
+            modelIndex (QtGui.modelIndex): to query the number of children
+        """
+        model = self.passive_associate_control.modelA
+        msg = "Passive Render Geo ({})".format(model.rowCount())
+        self.passive_render_label.setText(msg)
+
+    def update_passive_geo_label(self, modelIndex):
+        """Update the label to display the number of added nodes
+
+        Args:
+            modelIndex (QtGui.modelIndex): to query the number of children
+        """
+        model = self.passive_associate_control.modelB
+        msg = "Passive Sim Geo ({})".format(model.rowCount())
+        self.passive_sim_label.setText(msg)
+
+    def enable_create_button(self, all_pairs_made):
+        if self.render_associate_control.check_all_recorded():
+            self.create_btn.setEnabled(False)
+        else:
+            if self.passive_associate_control.check_all_recorded():
+                self.create_btn.setEnabled(False)
+            else:
+                self.create_btn.setEnabled(True)
 
     def load_techanim_info_layout(self):
         """widget containing the area the user posts information for a previously
@@ -630,7 +737,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         layout.addWidget(self.user_techanim_info_button)
         return group_widget
 
-    def geo_selection_layout(self):
+    def render_geo_selection_layout(self):
         """The render & sim qListview of the UI
 
         Returns:
@@ -672,6 +779,58 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
 
         selection_layout.addLayout(render_layout)
         selection_layout.addLayout(sim_layout)
+
+        return selection_layout
+
+    def passive_geo_selection_layout(self):
+        """The render & sim qListview of the UI
+
+        Returns:
+            QtWidgets.QHBoxLayout: layout containing the widgets
+            for this section.
+        """
+        selection_layout = QtWidgets.QHBoxLayout()
+        passive_render_layout = QtWidgets.QVBoxLayout()
+        self.passive_render_label = QtWidgets.QLabel("Passive Render Geo (0)")
+        self.passive_render_geo_view = QtWidgets.QListView()
+        self.passive_render_geo_view.setObjectName("RenderGeoListView")
+        msg = "Select Geo, then its corresponding sim cage."
+        self.passive_render_geo_view.setToolTip(msg)
+        msg = "Select passive render Geo, then its corresponding passive sim cage."
+        self.passive_render_geo_view.setWhatsThis(msg)
+        self.passive_render_geo_view.setCursor(QtCore.Qt.WhatsThisCursor)
+        self.passive_render_geo_add_btn = QtWidgets.QPushButton("Add Selected")
+        msg = "Add selected geo. No duplicates."
+        self.passive_render_geo_add_btn.setToolTip(msg)
+        msg = "Remove Selected"
+        self.passive_render_geo_remove_btn = QtWidgets.QPushButton(msg)
+        msg = "Remove selected from List."
+        self.passive_render_geo_remove_btn.setToolTip(msg)
+        passive_render_layout.addWidget(self.passive_render_label)
+        passive_render_layout.addWidget(self.passive_render_geo_view)
+        passive_render_layout.addWidget(self.passive_render_geo_add_btn)
+        passive_render_layout.addWidget(self.passive_render_geo_remove_btn)
+
+        passive_sim_layout = QtWidgets.QVBoxLayout()
+        self.passive_sim_label = QtWidgets.QLabel("Passive Sim Geo (0)")
+        self.passive_sim_geo_view = QtWidgets.QListView()
+        msg = "Select passive render Geo, then passive sim geo."
+        self.passive_sim_geo_view.setToolTip(msg)
+        msg = "Select passive render Geo, then passive sim geo."
+        self.passive_sim_geo_view.setWhatsThis(msg)
+        self.passive_sim_geo_view.setObjectName("SimGeoListView")
+        self.passive_sim_geo_view.setCursor(QtCore.Qt.WhatsThisCursor)
+        self.passive_sim_geo_add_btn = QtWidgets.QPushButton("Add Selected")
+        self.passive_sim_geo_add_btn.setToolTip("Add selected geo. No duplicates.")
+        self.passive_sim_geo_remove_btn = QtWidgets.QPushButton("Remove Selected")
+        self.passive_sim_geo_remove_btn.setToolTip("Remove selected from List.")
+        passive_sim_layout.addWidget(self.passive_sim_label)
+        passive_sim_layout.addWidget(self.passive_sim_geo_view)
+        passive_sim_layout.addWidget(self.passive_sim_geo_add_btn)
+        passive_sim_layout.addWidget(self.passive_sim_geo_remove_btn)
+
+        selection_layout.addLayout(passive_render_layout)
+        selection_layout.addLayout(passive_sim_layout)
 
         return selection_layout
 
@@ -757,7 +916,8 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         layout.addLayout(layout_b)
 
         self.create_btn = QtWidgets.QPushButton("Create Setup")
-        self.create_btn.setToolTip("Create setup when ALL associations have been made.")
+        msg = "Create setup when ALL associations have been made."
+        self.create_btn.setToolTip(msg)
         self.create_btn.setEnabled(False)
         layout.addWidget(self.create_btn)
         group_widget.setLayout(layout)
@@ -791,12 +951,17 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         Returns:
             n/a: Zilch, nada, 何も
         """
-        association_dict = self.associate_control.association_dict
-        techanim_info = {}
-        techanim_info[techanim_creator_utils.RENDER_SIM_KEY] = copy.deepcopy(association_dict)
-        if not techanim_info:
+        render_association_dict = self.render_associate_control.association_dict
+        passive_association_dict = self.passive_associate_control.association_dict
+        if self.passive_associate_control.check_all_recorded():
+            cmds.warning("Passsive geo associations not finished!")
             return
-        rigid_nodes = ast.literal_eval(self.passive_edit.text() or "[]")
+        techanim_info = {}
+        techanim_info[RENDER_SIM_KEY] = copy.deepcopy(render_association_dict)
+        if not techanim_info:
+            cmds.warning("No render/sim associations made!")
+            return
+        rigid_nodes_dict = copy.deepcopy(passive_association_dict)
         nClothMapsPaths = self.ncloth_maps_edit.text() or "[]"
         nClothMapsPaths = ast.literal_eval(nClothMapsPaths)
         setup_options = {
@@ -809,7 +974,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
         user_techanim_info = ast.literal_eval(user_techanim_info)
         add_key = techanim_creator_utils.ADDITIONAL_RENDER_OUTPUT_KEY
         addition_render_info = user_techanim_info.get(add_key, {})
-        techanim_info[techanim_creator_utils.RIGID_KEY] = rigid_nodes
+        techanim_info[RIGID_KEY] = rigid_nodes_dict
         techanim_info["setup_options"] = setup_options
         techanim_info[add_key] = addition_render_info
         techanim_creator_utils.create_setup(techanim_info,
@@ -834,6 +999,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
                                                        driven,
                                                        exclusiveBind=exclusiveBind,
                                                        falloffMode=falloffMode)
+        techanim_creator_utils.set_default_shader()
 
     def display_howto(self, howto_key):
         """Display the image over the widget

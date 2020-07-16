@@ -7,6 +7,7 @@
     "output_layer_name": "output",
     "render_input": "render_input",
     "render_output": "render_output",
+    "rigid_input": "rigid_input",
     "sim_input": "sim_input",
     "sim_output": "sim_output",
     "#": "Top node name",
@@ -33,7 +34,8 @@
             },
             "input": {
                 "render_input": null,
-                "sim_input": null
+                "sim_input": null,
+                "rigid_input": null
             },
             "post": {
                 "geo_post": null
