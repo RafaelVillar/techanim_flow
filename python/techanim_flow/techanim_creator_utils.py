@@ -14,6 +14,9 @@ Attributes:
     RIGID_KEY (str): keys for a config dict
 """
 
+# TODO
+    # unify all the camel casing on nCloth vs ncloth
+
 # Standard
 from __future__ import division
 from __future__ import generators
@@ -223,6 +226,26 @@ def set_default_all_nCloth_maps(nCloth_nodes=None):
             set_default_array_value(cloth, "nCloth", attr, array_length, attr_val=val)
 
 
+def set_default_perVertex(nodes):
+    """sets all the paintable or map'able attributes to perVertex as opposed
+    to textures
+
+    Args:
+        nodes (list): of nodes to default to perVertex
+    """
+    skipped_attrs = []
+    for node in nodes:
+        for attr in cmds.listAttr(node):
+            if attr.endswith("MapType"):
+                node_plug = "{}.{}".format(node, attr)
+                try:
+                    cmds.setAttr(node_plug, 0)
+                except Exception:
+                    skipped_attrs.append(node_plug)
+    if skipped_attrs:
+        print("Attrs skipped: {}".format(skipped_attrs))
+
+
 def set_all_maps_default():
     """convenience function to default all ncloth nodes in the scene
     """
@@ -230,6 +253,7 @@ def set_all_maps_default():
     nRigids = get_all_rigid_nodes()
     set_default_all_nCloth_maps(nCloths)
     set_default_all_rigid_maps(nRigids)
+    set_default_perVertex(nCloths + nRigids)
 
 
 def get_nNodes_from_shape(shapes):
@@ -1048,6 +1072,8 @@ def create_setup(techanim_info, setup_options=None):
     # for importing/exporting
     set_all_maps_default()
     nClothMapsPaths = setup_options.get("nClothMapsPaths", [])
+    # maps are not to be confused with textures, perhaps this
+    # is an overloaded term
     if nClothMapsPaths:
         import_weights_from_files(nClothMapsPaths)
 
