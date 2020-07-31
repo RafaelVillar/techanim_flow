@@ -457,7 +457,7 @@ class TechAnim_Setup(object):
         if not self.is_setup_connected() and not self.target_namespace:
             return
         self.get_association_info()
-        self.create_techanim_connections()
+        self.create_techanim_connections(import_setup=False)
 
     def get_layer_nodes_info(self, desired_layers):
         """return a dictionary of the topnode_name: [children of node]
@@ -605,11 +605,12 @@ class TechAnim_Setup(object):
                     continue
                 cmds.connectAttr(source_deformer[0], dest_plug, f=True)
 
-    def create_techanim_connections(self):
+    def create_techanim_connections(self, import_setup=True):
         """We are connecting the techanim to the rig on every initialization,
         check into this later to see if this is best practice or not.
         """
-        self.import_setup()
+        if import_setup:
+            self.import_setup()
         input_info = self.techanim_info[techanim_creator_utils.RENDER_INPUT_KEY]
         self._create_input_layer_connections(input_info)
         rigid_info = self.techanim_info[techanim_creator_utils.RIGID_KEY]
