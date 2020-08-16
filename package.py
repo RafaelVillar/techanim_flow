@@ -2,7 +2,9 @@
 import os
 
 name = "techanim_flow"
-version = os.environ.get("REZ_TM_PACKAGE_VERSION", "0.1.6")
+
+_version = os.environ.get("REZ_TM_PACKAGE_VERSION", "0.1.36d")
+version = _version
 
 build_command = "python -m rezutils build {root}"
 private_build_requires = ["rezutils-1"]
