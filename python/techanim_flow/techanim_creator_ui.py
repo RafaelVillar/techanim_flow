@@ -29,6 +29,9 @@ try:
 except Exception:
     from PySide2 import QtWidgets, QtGui, QtCore
 
+# pyd compatibility
+from . import __file__ as self_path
+
 from techanim_flow import ui_utils
 from techanim_flow import config_io
 from techanim_flow import techanim_creator_utils
@@ -43,7 +46,7 @@ reload(techanim_creator_utils)
 CONFIG = config_io.CONFIG
 
 WINDOW_TITLE = "TechAnim Creator"
-DIR_PATH = os.path.dirname(__file__)
+DIR_PATH = os.path.dirname(self_path)
 TECH_PYTHON_PATH = os.path.abspath(os.path.join(DIR_PATH, os.pardir))
 ROOT_MODULE_PATH = os.path.abspath(os.path.join(TECH_PYTHON_PATH, os.pardir))
 HOWTO_FILEPATH_DICT = CONFIG.get("HOWTO_FILEPATH_DICT", {})

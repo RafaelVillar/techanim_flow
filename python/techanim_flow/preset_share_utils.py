@@ -22,7 +22,6 @@ from __future__ import unicode_literals
 # Standard
 import os
 import re
-import ast
 import glob
 import json
 import getpass
@@ -312,7 +311,6 @@ def get_base_dir():
         os.makedirs(potential_path)
         dir_path = potential_path
     root_dir = os.path.abspath(dir_path)
-    print(root_dir)
     return root_dir
 
 
