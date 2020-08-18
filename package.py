@@ -3,7 +3,7 @@ import os
 
 name = "techanim_flow"
 
-_version = os.environ.get("REZ_TM_PACKAGE_VERSION", "0.1.36d")
+_version = os.environ.get("REZ_TM_PACKAGE_VERSION", "0.1.36")
 version = _version
 
 build_command = "python -m rezutils build {root}"
