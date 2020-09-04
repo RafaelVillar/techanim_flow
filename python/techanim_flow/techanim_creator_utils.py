@@ -370,8 +370,10 @@ def set_maps_data(nNode, map_data_dict, namespace=None):
     ns_nNode = "{}{}".format(namespace, nNode)
     for attr, val in map_data_dict[nNode].iteritems():
         node_plug = "{}.{}".format(ns_nNode, attr)
-        cmds.setAttr(node_plug, val, type="doubleArray")
-
+        try:
+            cmds.setAttr(node_plug, val, type="doubleArray")
+        except RuntimeError as e:
+            print(node_plug, val, "errored")
 
 def export_weights_to_file(path_dir, nNodes, map_data_dict=None):
     """Export all the maps from provided nCloth nodes to the dir

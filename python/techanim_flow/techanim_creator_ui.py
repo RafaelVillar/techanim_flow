@@ -570,6 +570,7 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
 
         render_as_co = self.render_associate_control
         render_as_co.association_dict = techanim_info[RENDER_SIM_KEY]
+
         render_model = self.render_geo_view.model()
         sim_model = self.sim_geo_view.model()
         render_model.clear()
@@ -578,11 +579,13 @@ class TechAnimCreatorUI(QtWidgets.QDialog):
                                techanim_info[RENDER_SIM_KEY].keys())
         render_as_co.add_items(sim_model,
                                techanim_info[RENDER_SIM_KEY].values())
+
         # passive control ----------------------------------------------------
-        passive_render_as_co = self.render_associate_control
-        passive_render_as_co.association_dict = techanim_info[RENDER_SIM_KEY]
-        passive_render_model = self.render_geo_view.model()
-        passive_sim_model = self.sim_geo_view.model()
+        passive_render_as_co = self.passive_associate_control
+        passive_render_as_co.association_dict = techanim_info[RIGID_KEY]
+
+        passive_render_model = self.passive_render_geo_view.model()
+        passive_sim_model = self.passive_sim_geo_view.model()
         passive_render_model.clear()
         passive_sim_model.clear()
         passive_render_as_co.add_items(passive_render_model,
