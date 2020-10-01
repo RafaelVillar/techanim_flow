@@ -15,4 +15,6 @@ Techanim things to do -
 -merge in weights export into master
 -check start frame against nuc start frame
 -option to disable nucleus on cache completion
+-copy params on publish to publish dir, for creator ui
+-dynamic constraint support
 ----------------------------

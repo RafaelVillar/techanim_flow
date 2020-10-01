@@ -859,7 +859,7 @@ class TechAnimSetupManagerUI(QtWidgets.QDialog):
             ui_utils.genericWarning(self, msg)
             return
         self.active_setup.set_start_nuclei_frame(self.total_start_frame)
-        cmds.currentTime(self.total_start_frame, e=True)
+        # cmds.currentTime(self.total_start_frame, e=True)
         start = time.time()
 
         self.active_setup.cache_sim_nodes(to_cache,
